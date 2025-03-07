@@ -1,0 +1,148 @@
+/* stylesInventario.css */
+
+/* Reset y configuración global */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  
+  body {
+    background-color: #f8f9fa;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    color: #333;
+    line-height: 1.6;
+  }
+  
+  /* Contenedor principal */
+  .container {
+    padding: 1rem;
+  }
+  
+  /* Encabezados */
+  h1, h2 {
+    margin-bottom: 1rem;
+    color: #333;
+  }
+  
+  /* Tablas */
+  .table {
+    width: 100%;
+    margin-top: 1rem;
+    background-color: #fff;
+    border-collapse: collapse;
+  }
+  
+  .table th,
+  .table td {
+    padding: 0.75rem;
+    border: 1px solid #dee2e6;
+    text-align: left;
+  }
+  
+  .table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+  
+  /* Botones */
+  .btn {
+    margin-right: 0.5rem;
+  }
+  
+  /* Formularios y controles */
+  .form-control,
+  .form-select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+    margin-bottom: 1rem;
+  }
+  
+  /* Input groups */
+  .input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  /* Utilitarios */
+  .mt-4 {
+    margin-top: 1.5rem;
+  }
+  .mb-4 {
+    margin-bottom: 1.5rem;
+  }
+  .mb-3 {
+    margin-bottom: 1rem;
+  }
+  
+  /* Modales */
+  .modal-content {
+    border-radius: 0.5rem;
+  }
+  
+  .modal-header {
+    background-color: #007bff;
+    color: #fff;
+    border-bottom: none;
+  }
+  
+  .modal-title {
+    margin: 0;
+  }
+  
+  .modal-body {
+    padding: 1rem;
+  }
+  
+  .modal-footer {
+    padding: 0.75rem;
+    border-top: 1px solid #dee2e6;
+  }
+  
+  /* Tablas específicas (categorías, subcategorías) */
+  #categoriesTable th,
+  #subcategoriesTable th {
+    background-color: #007bff;
+    color: #fff;
+  }
+  
+  #categoriesTable td,
+  #subcategoriesTable td {
+    vertical-align: middle;
+  }
+  
+  /* Formularios de modales */
+  .modal form .form-control,
+  .modal form .form-select {
+    margin-bottom: 1rem;
+  }
+  
+  /* Input group select */
+  .input-group select {
+    flex: 1;
+  }
+  
+  /* Personalización de botones */
+  .btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+  }
+  
+  .btn-danger {
+    background-color: #dc3545;
+    border-color: #dc3545;
+  }
+  
+  .btn-success {
+    background-color: #28a745;
+    border-color: #28a745;
+  }
+  
+  .btn-primary:hover,
+  .btn-danger:hover,
+  .btn-success:hover {
+    opacity: 0.9;
+  }
+  

@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Historial de Movimientos</title>
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- DataTables CSS -->
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css"
+    />
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Firebase (v8) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <!-- jQuery (requerido por DataTables) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- DataTables JS -->
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+    <style>
+      body {
+        padding: 20px;
+      }
+      .filter-container {
+        margin-bottom: 15px;
+      }
+      /* Ajustes para la ventana emergente de productos */
+      .swal2-popup {
+        width: 90% !important;
+        max-width: 1000px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="mb-4">Historial de Movimientos</h1>
+      
+      <!-- Filtros adicionales -->
+      <div class="row filter-container">
+        <div class="col-md-3">
+          <button id="btnFiltroProducto" class="btn btn-outline-primary w-100">
+            Filtrar por Producto
+          </button>
+        </div>
+        <div class="col-md-3">
+          <button id="btnLimpiarFiltro" class="btn btn-outline-secondary w-100">
+            Limpiar Filtro Producto
+          </button>
+        </div>
+        <div class="col-md-3">
+          <label for="filterTipo">Tipo de Movimiento:</label>
+          <select id="filterTipo" class="form-select">
+            <option value="">Todos</option>
+            <option value="entrada">Entrada</option>
+            <option value="salida">Salida</option>
+            <option value="reajuste">Reajuste</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label for="filterUsuario">Filtrar por Usuario:</label>
+          <input type="text" id="filterUsuario" class="form-control" placeholder="Usuario">
+        </div>
+      </div>
+      
+      <table id="movimientosTable" class="table table-striped">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Tipo</th>
+            <th>Código Producto</th>
+            <th>Producto</th>
+            <th>Variante</th>
+            <th>Cantidad</th>
+            <th>Stock Anterior</th>
+            <th>Stock Nuevo</th>
+            <th>Motivo</th>
+            <th>Usuario</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Los movimientos se cargarán dinámicamente -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+      /* ------------------------- Configuración Firebase ------------------------- */
+      var firebaseConfig = {
+        apiKey: "AIzaSyAjVTKBJwZ8qql32ZrZBy0Q1NFUYMu-Xzk",
+        authDomain: "gleedb-5d36a.firebaseapp.com",
+        projectId: "gleedb-5d36a",
+        storageBucket: "gleedb-5d36a.firebasestorage.app",
+        messagingSenderId: "1090238022032",
+        appId: "1:1090238022032:web:c637b0a6dfe06be5287315"
+      };
+      firebase.initializeApp(firebaseConfig);
+      var db = firebase.firestore();
+
+      // Variables para filtros
+      let filtroProducto = ""; // se filtrará por nombre del producto
+      let filtroTipo = "";
+      let filtroUsuario = "";
+
+      // Inicializar DataTable
+      let table;
+      function initDataTable() {
+        table = $('#movimientosTable').DataTable({
+          language: {
+            url: "https://cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json"
+          },
+          order: [[0, "desc"]],
+          responsive: true
+        });
+      }
+
+      // Filtro personalizado para DataTables
+      $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+        // data: [Fecha, Tipo, Código Producto, Producto, Variante, Cantidad, Stock Anterior, Stock Nuevo, Motivo, Usuario]
+        // Filtrar por producto (nombre o código)
+        if (filtroProducto) {
+          var prodNombre = data[3].toLowerCase();
+          var prodCodigo = data[2].toLowerCase();
+          if (!(prodNombre.includes(filtroProducto) || prodCodigo.includes(filtroProducto))) {
+            return false;
+          }
+        }
+        // Filtrar por tipo de movimiento
+        if (filtroTipo) {
+          var tipo = data[1].toLowerCase();
+          if (tipo !== filtroTipo) {
+            return false;
+          }
+        }
+        // Filtrar por usuario
+        if (filtroUsuario) {
+          var usuario = data[9].toLowerCase();
+          if (!usuario.includes(filtroUsuario)) {
+            return false;
+          }
+        }
+        return true;
+      });
+
+      // Cargar movimientos y actualizar la tabla
+      function cargarMovimientos() {
+        db.collection("movimientos").orderBy("fecha", "desc").onSnapshot((snapshot) => {
+          table.clear();
+          snapshot.forEach((doc) => {
+            const mov = doc.data();
+            // Suponemos que en Firestore se almacena: 
+            // mov.producto_codigo, mov.producto_nombre, mov.variante (objeto con codigo, color, talla, marca)
+            table.row.add([
+              new Date(mov.fecha).toLocaleString(),
+              mov.tipo_movimiento,
+              mov.producto_codigo || "N/A",
+              mov.producto_nombre,
+              mov.variante ? ("Código: " + (mov.variante.codigo || "N/A") + "<br>Color: " + mov.variante.color + "<br>Talla: " + mov.variante.talla + "<br>Marca: " + mov.variante.marca) : "",
+              mov.cantidad,
+              mov.stock_anterior,
+              mov.stock_nuevo,
+              mov.motivo,
+              mov.usuario
+            ]);
+          });
+          table.draw();
+        });
+      }
+
+      // Función para abrir ventana emergente de filtrado por producto
+      async function filtrarPorProducto() {
+        // Cargar productos de Firestore para mostrar en modal
+        const snapshot = await db.collection("productos").get();
+        let productos = [];
+        snapshot.forEach(doc => {
+          let prod = doc.data();
+          prod.id = doc.id;
+          // Puedes incluir más validaciones o filtros aquí
+          productos.push(prod);
+        });
+        if (productos.length === 0) {
+          await Swal.fire("No se encontraron productos.");
+          return;
+        }
+        // Construir HTML para modal: tabla con producto y variantes resumidas
+        let htmlContent = `
+          <input id="swal-search-prod" class="swal2-input" placeholder="Buscar por nombre, código, categoría, etc.">
+          <div style="max-height:400px; overflow-y:auto;">
+            <table id="tablaFiltroProductos" class="table table-bordered">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Nombre</th>
+                  <th>Categoría</th>
+                  <th>Subcategoría</th>
+                  <th>Variantes (Resumen)</th>
+                  <th>Seleccionar</th>
+                </tr>
+              </thead>
+              <tbody>`;
+        productos.forEach(prod => {
+          // Crear un resumen de variantes: por ejemplo, "Color-Talla (Stock)"
+          let resumenVar = "";
+          if (prod.variantes && prod.variantes.length > 0) {
+            prod.variantes.forEach(v => {
+              resumenVar += `${v.color}-${v.talla} (${v.stock})<br>`;
+            });
+          }
+          htmlContent += `
+            <tr class="prod-filter-row">
+              <td>${prod.codigo || "N/A"}</td>
+              <td>${prod.nombre}</td>
+              <td>${prod.categoria || "N/A"}</td>
+              <td>${prod.subcategoria || "N/A"}</td>
+              <td>${resumenVar}</td>
+              <td>
+                <button class="btn btn-sm btn-primary" data-prod='${JSON.stringify(prod)}'>
+                  Seleccionar
+                </button>
+              </td>
+            </tr>
+          `;
+        });
+        htmlContent += `
+              </tbody>
+            </table>
+          </div>
+        `;
+        await Swal.fire({
+          title: "Filtrar por Producto",
+          html: htmlContent,
+          focusConfirm: false,
+          showCancelButton: true,
+          didOpen: () => {
+            const inputSearch = document.getElementById("swal-search-prod");
+            inputSearch.addEventListener("input", () => {
+              const filter = inputSearch.value.toLowerCase();
+              const rows = document.querySelectorAll("#tablaFiltroProductos tbody tr");
+              rows.forEach(row => {
+                row.style.display = row.textContent.toLowerCase().includes(filter) ? "" : "none";
+              });
+            });
+            document.querySelectorAll("#tablaFiltroProductos button").forEach(btn => {
+              btn.addEventListener("click", () => {
+                const prodData = JSON.parse(btn.getAttribute("data-prod"));
+                filtroProducto = prodData.nombre.toLowerCase(); // usamos el nombre para filtrar
+                Swal.close();
+                table.draw();
+              });
+            });
+          }
+        });
+      }
+
+      // Limpiar filtro de producto
+      function limpiarFiltroProducto() {
+        filtroProducto = "";
+        table.draw();
+      }
+
+      // Eventos para los otros filtros
+      document.getElementById("filterTipo").addEventListener("change", function() {
+        filtroTipo = this.value.toLowerCase();
+        table.draw();
+      });
+      document.getElementById("filterUsuario").addEventListener("keyup", function() {
+        filtroUsuario = this.value.toLowerCase();
+        table.draw();
+      });
+
+      // Inicialización de DataTable y carga de movimientos
+      $(document).ready(function () {
+        initDataTable();
+        cargarMovimientos();
+      });
+
+      // Asignar eventos a botones de filtro por producto
+      document.getElementById("btnFiltroProducto").addEventListener("click", filtrarPorProducto);
+      document.getElementById("btnLimpiarFiltro").addEventListener("click", limpiarFiltroProducto);
+    </script>
+  </body>
+</html>

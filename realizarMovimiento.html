@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Registrar Movimiento de Inventario</title>
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Firebase (v8) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <style>
+      body {
+        padding: 20px;
+      }
+      /* Estilos para las tablas en el modal */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 10px;
+      }
+      th,
+      td {
+        padding: 5px;
+        border: 1px solid #ddd;
+        text-align: center;
+        font-size: 0.9rem;
+      }
+      th {
+        background-color: #f2f2f2;
+      }
+      .swal2-input,
+      .swal2-select {
+        margin: 5px 0;
+      }
+      .pointer {
+        cursor: pointer;
+      }
+      /* Para ampliar el modal */
+      .swal2-popup {
+        width: 90% !important;
+        max-width: 1000px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="mb-4">Registrar Movimiento de Inventario</h1>
+      <button class="btn btn-primary" onclick="iniciarRegistroMovimiento()">Registrar Movimiento</button>
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      /* ------------------------- Configuración Firebase ------------------------- */
+      var firebaseConfig = {
+        apiKey: "AIzaSyAjVTKBJwZ8qql32ZrZBy0Q1NFUYMu-Xzk",
+        authDomain: "gleedb-5d36a.firebaseapp.com",
+        projectId: "gleedb-5d36a",
+        storageBucket: "gleedb-5d36a.firebasestorage.app",
+        messagingSenderId: "1090238022032",
+        appId: "1:1090238022032:web:c637b0a6dfe06be5287315"
+      };
+      firebase.initializeApp(firebaseConfig);
+      var db = firebase.firestore();
+
+      // Usuario actual (valor fijo para el ejemplo)
+      const usuarioActual = "admin@tienda.com";
+
+      /* ------------------------- Función: Seleccionar Producto ------------------------- */
+      async function seleccionarProducto() {
+        // Cargar todos los productos desde Firestore
+        const snapshot = await db.collection("productos").get();
+        let productos = [];
+        snapshot.forEach(doc => {
+          let prod = doc.data();
+          prod.id = doc.id;
+          if (prod.variantes && prod.variantes.length > 0) {
+            productos.push(prod);
+          }
+        });
+        if (productos.length === 0) {
+          await Swal.fire("No se encontraron productos.");
+          return null;
+        }
+        // Construir HTML para el modal: se muestra el código junto con otros datos
+        let htmlContent = `
+          <input id="swal-search-prod" class="swal2-input" placeholder="Buscar por nombre, categoría, subcategoría, marca o código...">
+          <div style="max-height:400px; overflow-y:auto;">
+            <table id="tablaProductos">
+              <thead>
+                <tr>
+                  <th>Imagen</th>
+                  <th>Código</th>
+                  <th>Nombre</th>
+                  <th>Categoría</th>
+                  <th>Subcategoría</th>
+                  <th>Marca</th>
+                  <th>Stock Total</th>
+                  <th>Seleccionar</th>
+                </tr>
+              </thead>
+              <tbody>`;
+        productos.forEach(prod => {
+          let marca = prod.variantes[0].marca || "N/A";
+          htmlContent += `
+            <tr class="prod-row">
+              <td>${prod.imagen ? `<img src="${prod.imagen}" width="40" alt="${prod.nombre}">` : "N/A"}</td>
+              <td>${prod.codigo || "N/A"}</td>
+              <td>${prod.nombre}</td>
+              <td>${prod.categoria || "N/A"}</td>
+              <td>${prod.subcategoria || "N/A"}</td>
+              <td>${marca}</td>
+              <td>${prod.stock_total || 0}</td>
+              <td>
+                <button class="btn btn-sm btn-primary pointer" data-prod='${JSON.stringify(prod)}'>
+                  Seleccionar
+                </button>
+              </td>
+            </tr>
+          `;
+        });
+        htmlContent += `
+              </tbody>
+            </table>
+          </div>
+        `;
+        await Swal.fire({
+          title: "Seleccione un producto",
+          html: htmlContent,
+          focusConfirm: false,
+          showCancelButton: true,
+          didOpen: () => {
+            const inputSearch = document.getElementById("swal-search-prod");
+            inputSearch.addEventListener("input", () => {
+              const filter = inputSearch.value.toLowerCase();
+              const rows = document.querySelectorAll("#tablaProductos tbody tr");
+              rows.forEach(row => {
+                row.style.display = row.textContent.toLowerCase().includes(filter) ? "" : "none";
+              });
+            });
+            document.querySelectorAll("#tablaProductos button").forEach(btn => {
+              btn.addEventListener("click", () => {
+                const prodData = JSON.parse(btn.getAttribute("data-prod"));
+                Swal.close();
+                seleccionarVariante(prodData);
+              });
+            });
+          }
+        });
+      }
+
+      /* ------------------------- Función: Seleccionar Variante ------------------------- */
+      async function seleccionarVariante(prodData) {
+        if (!prodData.variantes || prodData.variantes.length === 0) {
+          await Swal.fire("El producto seleccionado no tiene variantes.");
+          return;
+        }
+        let htmlContent = `
+          <h4>${prodData.nombre} - Código: ${prodData.codigo || "N/A"}</h4>
+          <input id="swal-search-var" class="swal2-input" placeholder="Buscar por color, talla, marca o stock...">
+          <div style="max-height:300px; overflow-y:auto;">
+            <table id="tablaVariantes">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Color</th>
+                  <th>Talla</th>
+                  <th>Marca</th>
+                  <th>Precio (Q)</th>
+                  <th>Stock</th>
+                  <th>Seleccionar</th>
+                </tr>
+              </thead>
+              <tbody>`;
+        prodData.variantes.forEach((variant, index) => {
+          htmlContent += `
+            <tr class="var-row">
+              <td>${variant.codigo || "N/A"}</td>
+              <td>${variant.color || "N/A"}</td>
+              <td>${variant.talla || "N/A"}</td>
+              <td>${variant.marca || "N/A"}</td>
+              <td>${variant.precio ? "Q" + variant.precio : "N/A"}</td>
+              <td>${variant.stock || 0}</td>
+              <td>
+                <button class="btn btn-sm btn-primary pointer" data-index="${index}" data-variant='${JSON.stringify(variant)}'>
+                  Seleccionar
+                </button>
+              </td>
+            </tr>
+          `;
+        });
+        htmlContent += `
+              </tbody>
+            </table>
+          </div>
+        `;
+        await Swal.fire({
+          title: "Seleccione una variante",
+          html: htmlContent,
+          focusConfirm: false,
+          showCancelButton: true,
+          didOpen: () => {
+            const inputSearch = document.getElementById("swal-search-var");
+            inputSearch.addEventListener("input", () => {
+              const filter = inputSearch.value.toLowerCase();
+              const rows = document.querySelectorAll("#tablaVariantes tbody tr");
+              rows.forEach(row => {
+                row.style.display = row.textContent.toLowerCase().includes(filter) ? "" : "none";
+              });
+            });
+            document.querySelectorAll("#tablaVariantes button").forEach(btn => {
+              btn.addEventListener("click", () => {
+                const variantData = JSON.parse(btn.getAttribute("data-variant"));
+                const variantIndex = parseInt(btn.getAttribute("data-index"));
+                Swal.close();
+                registrarMovimientoDetalle(prodData, variantData, variantIndex);
+              });
+            });
+          }
+        });
+      }
+
+      /* ------------------------- Función: Registrar Movimiento Detalle ------------------------- */
+      async function registrarMovimientoDetalle(prodData, variantData, variantIndex) {
+        let resumenHtml = `
+          <p><strong>Producto:</strong> ${prodData.nombre} (Código: ${prodData.codigo || "N/A"})</p>
+          <p><strong>Categoría / Subcategoría:</strong> ${prodData.categoria} / ${prodData.subcategoria}</p>
+          <p><strong>Variante:</strong> Código: ${variantData.codigo || "N/A"}, Color: ${variantData.color}, Talla: ${variantData.talla}, Marca: ${variantData.marca}</p>
+          <p><strong>Stock Actual:</strong> ${variantData.stock || 0}</p>
+          <hr>
+          <label for="tipoMovimiento">Tipo de Movimiento:</label>
+          <select id="tipoMovimiento" class="swal2-select">
+            <option value="Entrada">Entrada (Aumentar Stock)</option>
+            <option value="Salida">Salida (Reducir Stock)</option>
+            <option value="Reajuste">Reajuste (Nuevo Stock)</option>
+          </select>
+          <input type="number" id="cantidadMovimiento" class="swal2-input" placeholder="Cantidad (o nuevo stock)" min="0">
+          <input type="text" id="motivoMovimiento" class="swal2-input" placeholder="Motivo (obligatorio en reajuste)">
+        `;
+        const { value: movData } = await Swal.fire({
+          title: "Registrar Movimiento",
+          html: resumenHtml,
+          focusConfirm: false,
+          preConfirm: () => {
+            const tipo = document.getElementById("tipoMovimiento").value;
+            const cantidadStr = document.getElementById("cantidadMovimiento").value;
+            const motivo = document.getElementById("motivoMovimiento").value;
+            const cantidad = parseInt(cantidadStr);
+            if (!tipo) {
+              Swal.showValidationMessage("Seleccione el tipo de movimiento.");
+              return;
+            }
+            if (isNaN(cantidad) || cantidad <= 0) {
+              Swal.showValidationMessage("Ingrese una cantidad válida mayor a 0.");
+              return;
+            }
+            if (tipo === "Salida" && cantidad > (variantData.stock || 0)) {
+              Swal.showValidationMessage("La cantidad a retirar excede el stock disponible.");
+              return;
+            }
+            if (tipo === "Reajuste" && motivo.trim() === "") {
+              Swal.showValidationMessage("El motivo es obligatorio para un reajuste.");
+              return;
+            }
+            return { tipo, cantidad, motivo };
+          }
+        });
+        if (!movData) return;
+        let stockAnterior = variantData.stock || 0;
+        let stockNuevo;
+        if (movData.tipo === "Entrada") {
+          stockNuevo = stockAnterior + movData.cantidad;
+        } else if (movData.tipo === "Salida") {
+          stockNuevo = stockAnterior - movData.cantidad;
+        } else if (movData.tipo === "Reajuste") {
+          stockNuevo = movData.cantidad;
+        }
+        const resumenFinal = `
+          <p><strong>Producto:</strong> ${prodData.nombre} (Código: ${prodData.codigo || "N/A"})</p>
+          <p><strong>Variante:</strong> Código: ${variantData.codigo || "N/A"}, Color: ${variantData.color}, Talla: ${variantData.talla}, Marca: ${variantData.marca}</p>
+          <p><strong>Stock Anterior:</strong> ${stockAnterior}</p>
+          <p><strong>Tipo de Movimiento:</strong> ${movData.tipo}</p>
+          <p><strong>${movData.tipo === "Reajuste" ? "Nuevo Stock" : "Cantidad"}:</strong> ${movData.cantidad}</p>
+          <p><strong>Stock Nuevo:</strong> ${stockNuevo}</p>
+          <p><strong>Motivo:</strong> ${movData.motivo || (movData.tipo === "Entrada" ? "Entrada" : "Salida")}</p>
+          <p><strong>Usuario:</strong> ${usuarioActual}</p>
+        `;
+        const confirmar = await Swal.fire({
+          title: "Confirmar Movimiento",
+          html: resumenFinal,
+          icon: "question",
+          showCancelButton: true,
+          confirmButtonText: "Confirmar"
+        });
+        if (!confirmar.isConfirmed) return;
+        try {
+          await db.runTransaction(async transaction => {
+            const prodRef = db.collection("productos").doc(prodData.id);
+            const prodDoc = await transaction.get(prodRef);
+            if (!prodDoc.exists) {
+              throw "El producto no existe.";
+            }
+            const prodInfo = prodDoc.data();
+            let variantes = prodInfo.variantes || [];
+            if (variantIndex < 0 || variantIndex >= variantes.length) {
+              throw "La variante seleccionada no se encontró.";
+            }
+            variantes[variantIndex].stock = stockNuevo;
+            transaction.update(prodRef, { variantes: variantes });
+          });
+          await db.collection("movimientos").add({
+            producto_id: prodData.id,
+            producto_nombre: prodData.nombre,
+            variante: {
+              color: variantData.color,
+              talla: variantData.talla,
+              marca: variantData.marca,
+              codigo: variantData.codigo || "N/A"
+            },
+            tipo_movimiento: movData.tipo,
+            cantidad: movData.tipo === "Reajuste" ? Math.abs(stockNuevo - stockAnterior) : movData.cantidad,
+            stock_anterior: stockAnterior,
+            stock_nuevo: stockNuevo,
+            motivo: movData.motivo || (movData.tipo === "Entrada" ? "Entrada" : "Salida"),
+            fecha: new Date().toISOString(),
+            usuario: usuarioActual
+          });
+          Swal.fire("Movimiento registrado!", "", "success");
+        } catch (error) {
+          Swal.fire("Error", error.toString(), "error");
+        }
+      }
+
+      /* ------------------------- Iniciar Registro de Movimiento ------------------------- */
+      async function iniciarRegistroMovimiento() {
+        await seleccionarProducto();
+      }
+    </script>
+  </body>
+</html>

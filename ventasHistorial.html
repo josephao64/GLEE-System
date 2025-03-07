@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Historial de Ventas</title>
+    <!-- Bootstrap CSS -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+    />
+    <!-- DataTables CSS -->
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css"
+    />
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Firebase (v8) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <!-- jQuery (requerido por DataTables) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- DataTables JS -->
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+    <!-- jsPDF para generar comprobantes en PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+      body {
+        padding: 20px;
+      }
+      /* Todos los textos en la tabla se muestran en mayúsculas */
+      table.dataTable th,
+      table.dataTable td {
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .date-filter,
+      .order-filter,
+      .select-filter {
+        max-width: 200px;
+        margin-right: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="mb-4">Historial de Ventas</h1>
+      <!-- Filtros avanzados -->
+      <div class="row mb-3">
+        <div class="col-md-2">
+          <label for="fechaInicio" class="form-label">Fecha Inicio</label>
+          <input type="date" id="fechaInicio" class="form-control date-filter" />
+        </div>
+        <div class="col-md-2">
+          <label for="fechaFin" class="form-label">Fecha Fin</label>
+          <input type="date" id="fechaFin" class="form-control date-filter" />
+        </div>
+        <div class="col-md-2">
+          <label for="orderVenta" class="form-label">Ordenar por</label>
+          <select id="orderVenta" class="form-select order-filter">
+            <option value="desc" selected>Ventas más recientes</option>
+            <option value="asc">Ventas más antiguas</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label for="metodoPagoFilter" class="form-label">Método de Pago</label>
+          <select id="metodoPagoFilter" class="form-select select-filter">
+            <option value="">TODOS</option>
+            <option value="EFECTIVO">EFECTIVO</option>
+            <option value="TARJETA">TARJETA</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label for="estadoFilter" class="form-label">Estado</label>
+          <select id="estadoFilter" class="form-select select-filter">
+            <option value="">TODOS</option>
+            <option value="COMPLETADA">COMPLETADA</option>
+            <option value="ANULADA">ANULADA</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label for="buscadorGeneral" class="form-label">Buscar</label>
+          <input type="text" id="buscadorGeneral" class="form-control" placeholder="Buscar..." />
+        </div>
+      </div>
+      <table id="ventasTable" class="table table-striped table-bordered">
+        <thead>
+          <tr>
+            <th>ID VENTA</th>
+            <th>FECHA</th>
+            <th>CLIENTE</th>
+            <th>MONTO TOTAL</th>
+            <th>MÉTODO DE PAGO</th>
+            <th>ESTADO</th>
+            <th>ACCIONES</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Se cargarán dinámicamente desde Firestore -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      // Configuración de Firebase
+      var firebaseConfig = {
+        apiKey: "AIzaSyAjVTKBJwZ8qql32ZrZBy0Q1NFUYMu-Xzk",
+        authDomain: "gleedb-5d36a.firebaseapp.com",
+        projectId: "gleedb-5d36a",
+        storageBucket: "gleedb-5d36a",
+        messagingSenderId: "1090238022032",
+        appId: "1:1090238022032:web:c637b0a6dfe06be5287315"
+      };
+      firebase.initializeApp(firebaseConfig);
+      var db = firebase.firestore();
+
+      let tablaVentas;
+      $(document).ready(function () {
+        // Inicializamos la DataTable con definición de columnas
+        tablaVentas = $("#ventasTable").DataTable({
+          language: {
+            url: "https://cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json"
+          },
+          columns: [
+            { title: "ID VENTA" },
+            { title: "FECHA" },
+            { title: "CLIENTE" },
+            { title: "MONTO TOTAL" },
+            { title: "MÉTODO DE PAGO" },
+            { title: "ESTADO" },
+            { title: "ACCIONES", orderable: false }
+          ],
+          order: [[1, "desc"]],
+          responsive: true
+        });
+        cargarVentas();
+
+        // Eventos para filtros externos
+        $("#fechaInicio, #fechaFin, #metodoPagoFilter, #estadoFilter").on("change", function () {
+          tablaVentas.draw();
+        });
+        $("#buscadorGeneral").on("keyup", function () {
+          tablaVentas.search(this.value).draw();
+        });
+        $("#orderVenta").on("change", function () {
+          let order = $(this).val();
+          tablaVentas.order([1, order]).draw();
+        });
+      });
+
+      // Función para cargar ventas desde Firestore
+      function cargarVentas() {
+        db.collection("ventas").onSnapshot((snapshot) => {
+          tablaVentas.clear();
+          snapshot.forEach((doc) => {
+            let venta = doc.data();
+            venta.id = doc.id;
+            tablaVentas.row.add([
+              venta.id,
+              new Date(venta.fecha).toLocaleString(),
+              venta.cliente.nombre,
+              "Q" + venta.total.toFixed(2),
+              venta.metodo_pago,
+              venta.estado ? venta.estado : "COMPLETADA",
+              `<button class="btn btn-sm btn-info" onclick="verVenta('${venta.id}')">📜 VER</button>
+               <button class="btn btn-sm btn-warning" onclick="anularVenta('${venta.id}')">✖ ANULAR</button>
+               <button class="btn btn-sm btn-danger" onclick="eliminarVenta('${venta.id}')">❌ ELIMINAR</button>`
+            ]);
+          });
+          tablaVentas.draw();
+        });
+      }
+
+      // Filtro personalizado para rango de fechas, método de pago y estado
+      $.fn.dataTable.ext.search.push(function (settings, data, dataIndex) {
+        let fechaInicio = $("#fechaInicio").val();
+        let fechaFin = $("#fechaFin").val();
+        let fechaVenta = new Date(data[1]);
+        if (fechaInicio) {
+          if (fechaVenta < new Date(fechaInicio)) return false;
+        }
+        if (fechaFin) {
+          let fin = new Date(fechaFin);
+          fin.setHours(23, 59, 59, 999);
+          if (fechaVenta > fin) return false;
+        }
+        let filtroMetodo = $("#metodoPagoFilter").val();
+        if (filtroMetodo && data[4].toUpperCase() !== filtroMetodo.toUpperCase()) return false;
+        let filtroEstado = $("#estadoFilter").val();
+        if (filtroEstado && data[5].toUpperCase() !== filtroEstado.toUpperCase()) return false;
+        return true;
+      });
+
+      // Función para ver el comprobante en modal
+      function verVenta(idVenta) {
+        db.collection("ventas").doc(idVenta).get().then((doc) => {
+          if (doc.exists) {
+            let venta = doc.data();
+            Swal.fire({
+              title: "Comprobante de Venta",
+              html: `<div id="detalleVenta" style="text-align:left; max-height:400px; overflow-y:auto;"></div>
+                     <br>
+                     <button class="btn btn-primary" onclick='descargarComprobante(${JSON.stringify(venta)})'>DESCARGAR COMPROBANTE</button>
+                     <button class="btn btn-secondary" onclick='window.print()'>IMPRIMIR</button>`,
+              width: "80%"
+            });
+            let htmlDetalle = `<strong>ID VENTA:</strong> ${idVenta}<br>`;
+            htmlDetalle += `<strong>FECHA:</strong> ${new Date(venta.fecha).toLocaleString()}<br>`;
+            htmlDetalle += `<strong>CLIENTE:</strong> ${venta.cliente.nombre} - TEL: ${venta.cliente.telefono}<br>`;
+            htmlDetalle += `<strong>MÉTODO DE PAGO:</strong> ${venta.metodo_pago}<br><hr>`;
+            htmlDetalle += `<strong>PRODUCTOS:</strong><br>`;
+            venta.productos.forEach((prod, i) => {
+              htmlDetalle += `${i + 1}. ${prod.producto_nombre} (${prod.producto_codigo || "N/A"})<br>`;
+              htmlDetalle += `VAR: ${prod.variante.codigo} - ${prod.variante.color} / ${prod.variante.talla} / ${prod.variante.marca}<br>`;
+              htmlDetalle += `CANT: ${prod.cantidad} x Q${prod.precio_unitario.toFixed(2)} = Q${prod.subtotal.toFixed(2)}<br><br>`;
+            });
+            htmlDetalle += `<hr><strong>TOTAL:</strong> Q${venta.total.toFixed(2)}`;
+            document.getElementById("detalleVenta").innerHTML = htmlDetalle;
+          } else {
+            Swal.fire("VENTA NO ENCONTRADA", "", "error");
+          }
+        });
+      }
+
+      // Función para anular una venta (solo si no está anulada)
+      function anularVenta(idVenta) {
+        db.collection("ventas").doc(idVenta).get().then((doc) => {
+          if (doc.exists) {
+            let venta = doc.data();
+            if (venta.estado && venta.estado.toUpperCase() === "ANULADA") {
+              Swal.fire("LA VENTA YA ESTÁ ANULADA", "", "info");
+              return;
+            }
+            Swal.fire({
+              title: "¿ANULAR VENTA?",
+              text: "Esta acción reintegrará los productos al inventario y marcará la venta como anulada.",
+              icon: "warning",
+              showCancelButton: true,
+              confirmButtonText: "SÍ, ANULAR"
+            }).then((result) => {
+              if (result.isConfirmed) {
+                // Reintegrar stock para cada producto de la venta
+                let promises = venta.productos.map(item => {
+                  return db.collection("productos").doc(item.producto_id).get().then((prodDoc) => {
+                    if (prodDoc.exists) {
+                      let prodData = prodDoc.data();
+                      let variantes = prodData.variantes;
+                      if (variantes && variantes[item.variantIndex] !== undefined) {
+                        variantes[item.variantIndex].stock += item.cantidad;
+                      }
+                      return db.collection("productos").doc(item.producto_id).update({ variantes: variantes });
+                    }
+                  });
+                });
+                Promise.all(promises).then(() => {
+                  db.collection("ventas").doc(idVenta).update({ estado: "ANULADA" }).then(() => {
+                    Swal.fire("VENTA ANULADA", "", "success");
+                  });
+                });
+              }
+            });
+          }
+        });
+      }
+
+      // Función para eliminar una venta permanentemente
+      function eliminarVenta(idVenta) {
+        Swal.fire({
+          title: "¿ELIMINAR VENTA?",
+          text: "Esta acción eliminará la venta permanentemente sin reintegrar el inventario.",
+          icon: "error",
+          showCancelButton: true,
+          confirmButtonText: "SÍ, ELIMINAR"
+        }).then((result) => {
+          if (result.isConfirmed) {
+            db.collection("ventas").doc(idVenta).delete().then(() => {
+              Swal.fire("VENTA ELIMINADA", "", "success");
+            }).catch((error) => {
+              Swal.fire("ERROR", error.toString(), "error");
+            });
+          }
+        });
+      }
+
+      // Función para descargar el comprobante en formato estrecho (ticket)
+      function descargarComprobante(venta) {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({
+          orientation: 'p',
+          unit: 'mm',
+          format: [80, 300]
+        });
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        let xMargin = 5;
+        let y = 10;
+        
+        // Paleta de colores y estilos
+        const colorPrimario = [60, 60, 60];
+        const colorLineas   = [200, 200, 200];
+        const colorSeccion  = [230, 230, 240];
+        
+        // TÍTULO PRINCIPAL
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(12);
+        doc.text("COMPROBANTE DE VENTA", pageWidth / 2, y, { align: "center" });
+        y += 6;
+        doc.setLineWidth(0.3);
+        doc.setDrawColor(...colorLineas);
+        doc.line(xMargin, y, pageWidth - xMargin, y);
+        y += 4;
+        
+        // DATOS DEL CLIENTE
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setFillColor(...colorSeccion);
+        doc.rect(xMargin, y - 3, pageWidth - xMargin * 2, 6, "F");
+        doc.text("DATOS DEL CLIENTE", xMargin + 1, y);
+        y += 8;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.text("FECHA: " + new Date(venta.fecha).toLocaleString(), xMargin, y);
+        y += 5;
+        doc.text("NOMBRE: " + (venta.cliente.nombre || ""), xMargin, y);
+        y += 5;
+        doc.text("TEL: " + (venta.cliente.telefono || ""), xMargin, y);
+        y += 5;
+        if (venta.cliente.correo) {
+          doc.text("CORREO: " + venta.cliente.correo, xMargin, y);
+          y += 5;
+        }
+        if (venta.cliente.direccion) {
+          doc.text("DIR: " + venta.cliente.direccion, xMargin, y);
+          y += 5;
+        }
+        y += 2;
+        doc.line(xMargin, y, pageWidth - xMargin, y);
+        y += 4;
+        
+        // DETALLE DE PRODUCTOS
+        doc.setFont("helvetica", "bold");
+        doc.setFillColor(...colorSeccion);
+        doc.rect(xMargin, y - 3, pageWidth - xMargin * 2, 6, "F");
+        doc.text("PRODUCTOS", xMargin + 1, y);
+        y += 6;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        // Encabezado de mini-tabla
+        doc.setFont("helvetica", "bold");
+        doc.text("DESC.", xMargin, y);
+        doc.text("CANT", pageWidth - xMargin - 30, y, { align: "right" });
+        doc.text("P.U.", pageWidth - xMargin - 18, y, { align: "right" });
+        doc.text("SUBT.", pageWidth - xMargin, y, { align: "right" });
+        y += 4;
+        doc.setDrawColor(...colorLineas);
+        doc.line(xMargin, y, pageWidth - xMargin, y);
+        y += 3;
+        doc.setFont("helvetica", "normal");
+        venta.productos.forEach((prod, index) => {
+          let nombre = prod.producto_nombre || "";
+          if(nombre.length > 20){ nombre = nombre.substring(0,20) + "..."; }
+          const precio_unitario = prod.precio_unitario !== undefined ? prod.precio_unitario : 0;
+          const subtotal = prod.subtotal !== undefined ? prod.subtotal : 0;
+          doc.text(`${index+1}. ${nombre}`, xMargin, y);
+          y += 4;
+          if(prod.variante){
+            let varTexto = (prod.variante.codigo || "N/A") + " - " + (prod.variante.color || "") + " / " + (prod.variante.talla || "");
+            doc.setFontSize(8);
+            doc.text(varTexto, xMargin, y);
+            doc.setFontSize(9);
+            y += 4;
+          }
+          doc.text(String(prod.cantidad), pageWidth - xMargin - 30, y - 2, { align: "right" });
+          doc.text("Q" + precio_unitario.toFixed(2), pageWidth - xMargin - 18, y - 2, { align: "right" });
+          doc.text("Q" + subtotal.toFixed(2), pageWidth - xMargin, y - 2, { align: "right" });
+          y += 6;
+          if (y > pageHeight - 20) {
+            doc.addPage();
+            y = 10;
+          }
+        });
+        
+        y += 3;
+        doc.line(xMargin, y, pageWidth - xMargin, y);
+        y += 5;
+        
+        // RESUMEN DE VENTA (alineado a la derecha)
+        doc.setFont("helvetica", "bold");
+        doc.setFillColor(...colorSeccion);
+        doc.rect(xMargin, y - 3, pageWidth - xMargin * 2, 6, "F");
+        doc.text("RESUMEN", xMargin + 1, y);
+        y += 6;
+        doc.setFont("helvetica", "normal");
+        doc.text("SUBTOTAL:", pageWidth - xMargin - 20, y, { align: "right" });
+        doc.text("Q" + venta.total.toFixed(2), pageWidth - xMargin, y, { align: "right" });
+        y += 5;
+        let impuestos = 0; // Ajusta según sea necesario
+        doc.text("IMPUESTOS:", pageWidth - xMargin - 20, y, { align: "right" });
+        doc.text("Q" + impuestos.toFixed(2), pageWidth - xMargin, y, { align: "right" });
+        y += 5;
+        let totalPagar = venta.total + impuestos;
+        doc.setFont("helvetica", "bold");
+        doc.text("TOTAL:", pageWidth - xMargin - 20, y, { align: "right" });
+        doc.text("Q" + totalPagar.toFixed(2), pageWidth - xMargin, y, { align: "right" });
+        doc.setFont("helvetica", "normal");
+        y += 7;
+        doc.text("MÉTODO: " + venta.metodo_pago, xMargin, y);
+        if (venta.metodo_pago === "Efectivo") {
+          y += 6;
+          doc.text("RECIBIDO:", xMargin, y);
+          doc.text("Q" + (venta.montoRecibido !== undefined ? venta.montoRecibido.toFixed(2) : "0.00"), pageWidth - xMargin, y, { align: "right" });
+          y += 6;
+          doc.text("CAMBIO:", xMargin, y);
+          doc.text("Q" + (venta.cambio !== undefined ? venta.cambio.toFixed(2) : "0.00"), pageWidth - xMargin, y, { align: "right" });
+        }
+        y += 10;
+        doc.setFont("helvetica", "italic");
+        doc.text("¡GRACIAS POR SU COMPRA!", pageWidth / 2, y, { align: "center" });
+        
+        // Dibujar borde final del ticket
+        doc.setLineWidth(0.5);
+        doc.rect(xMargin, 8, pageWidth - xMargin * 2, y + 5);
+        
+        doc.save("comprobante_venta_estrecho.pdf");
+      }
+
+      // Inicializar el sistema de ventas (carga categorías y productos)
+      async function initSistemaVenta() {
+        await loadCategorias();
+        await loadProductos();
+      }
+      initSistemaVenta();
+
+      // Eventos de filtros para productos (en esta página se reutiliza renderProductos para la vista de productos)
+      document.getElementById("filterNombre").addEventListener("input", function () {
+        tablaVentas.search(this.value).draw();
+      });
+      document.getElementById("filterCategoria").addEventListener("change", function () {
+        tablaVentas.draw();
+      });
+      document.getElementById("filterSubcategoria").addEventListener("change", function () {
+        tablaVentas.draw();
+      });
+      document.getElementById("filterPrecioMin").addEventListener("input", function () {
+        tablaVentas.draw();
+      });
+      document.getElementById("filterPrecioMax").addEventListener("input", function () {
+        tablaVentas.draw();
+      });
+      document.getElementById("filterStock").addEventListener("input", function () {
+        tablaVentas.draw();
+      });
+    </script>
+  </body>
+</html>

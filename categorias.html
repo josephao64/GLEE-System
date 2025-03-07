@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sistema de Gestión de Categorías y Subcategorías de Ropa</title>
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- Bootstrap Icons -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css"
+    />
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Firebase (v8) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <style>
+      body {
+        padding: 20px;
+      }
+      .dark-mode {
+        background-color: #121212;
+        color: #f5f5f5;
+      }
+      .card.dark-mode {
+        background-color: #1e1e1e;
+        color: #f5f5f5;
+      }
+      .cursor-pointer {
+        cursor: pointer;
+      }
+      /* Ajustes para la lista de categorías y subcategorías */
+      #categoriesList .card {
+        margin-bottom: 15px;
+      }
+      #categoriesList .sub-item {
+        padding: 5px 0;
+        border-bottom: 1px solid #ccc;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="mb-4">Gestión de Categorías y Subcategorías de Ropa</h1>
+      <div class="mb-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <button id="btnAddCategory" class="btn btn-primary">
+          Agregar Categoría
+        </button>
+        <input
+          type="text"
+          id="searchInput"
+          class="form-control"
+          placeholder="Buscar categorías"
+          style="max-width: 250px;"
+        />
+        <select id="sortSelect" class="form-select" style="max-width: 250px;">
+          <option value="createdAt">Ordenar por Fecha de Creación</option>
+          <option value="name">Ordenar alfabéticamente</option>
+        </select>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="darkModeSwitch" />
+          <label class="form-check-label" for="darkModeSwitch">Modo Oscuro</label>
+        </div>
+      </div>
+      <div id="categoriesList">
+        <!-- Aquí se mostrará la lista de categorías y subcategorías -->
+      </div>
+    </div>
+
+    <!-- Bootstrap JS Bundle (incluye Popper) -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+    ></script>
+
+    <script>
+      // Configuración de Firebase
+      var firebaseConfig = {
+        apiKey: "AIzaSyAjVTKBJwZ8qql32ZrZBy0Q1NFUYMu-Xzk",
+        authDomain: "gleedb-5d36a.firebaseapp.com",
+        projectId: "gleedb-5d36a",
+        storageBucket: "gleedb-5d36a.firebasestorage.app",
+        messagingSenderId: "1090238022032",
+        appId: "1:1090238022032:web:c637b0a6dfe06be5287315"
+      };
+      firebase.initializeApp(firebaseConfig);
+      var db = firebase.firestore();
+
+      // Variables globales
+      let categoriesData = [];
+      let unsubscribeCategories = null;
+
+      // Referencias a elementos del DOM
+      const categoriesList = document.getElementById("categoriesList");
+      const searchInput = document.getElementById("searchInput");
+      const sortSelect = document.getElementById("sortSelect");
+      const darkModeSwitch = document.getElementById("darkModeSwitch");
+
+      // Función para renderizar las categorías y subcategorías
+      function renderCategories() {
+        // Filtrado en función del input de búsqueda
+        let filteredCategories = categoriesData.filter((cat) =>
+          cat.name.toLowerCase().includes(searchInput.value.toLowerCase())
+        );
+
+        // Aplicar ordenamiento según la opción seleccionada
+        const sortBy = sortSelect.value;
+        if (sortBy === "name") {
+          filteredCategories.sort((a, b) => a.name.localeCompare(b.name));
+        } else if (sortBy === "createdAt") {
+          filteredCategories.sort((a, b) => a.createdAt - b.createdAt);
+        }
+
+        categoriesList.innerHTML = "";
+        filteredCategories.forEach((cat) => {
+          const card = document.createElement("div");
+          card.className = "card";
+          card.innerHTML = `
+            <div class="card-body">
+              <h5 class="card-title d-flex justify-content-between">
+                <span>${cat.name}</span>
+                <span>
+                  <i class="bi bi-pencil-square cursor-pointer" onclick="editCategory('${cat.id}', '${cat.name}')"></i>
+                  <i class="bi bi-trash cursor-pointer ms-2" onclick="deleteCategory('${cat.id}')"></i>
+                </span>
+              </h5>
+              <button class="btn btn-secondary btn-sm mb-2" onclick="addSubcategoryPrompt('${cat.id}')">
+                Agregar Subcategoría
+              </button>
+              <div id="subcategories-${cat.id}">
+                <!-- Lista de subcategorías -->
+              </div>
+            </div>
+          `;
+          categoriesList.appendChild(card);
+          renderSubcategories(cat.id);
+        });
+      }
+
+      // Función para renderizar las subcategorías de una categoría
+      function renderSubcategories(categoryId) {
+        const subContainer = document.getElementById("subcategories-" + categoryId);
+        db.collection("categories")
+          .doc(categoryId)
+          .collection("subcategories")
+          .orderBy("createdAt")
+          .onSnapshot((snapshot) => {
+            let html = "";
+            snapshot.forEach((doc) => {
+              const sub = doc.data();
+              html += `
+                <div class="d-flex justify-content-between align-items-center sub-item">
+                  <span>${sub.name}</span>
+                  <span>
+                    <i class="bi bi-pencil-square cursor-pointer" onclick="editSubcategory('${categoryId}', '${doc.id}', '${sub.name}')"></i>
+                    <i class="bi bi-trash cursor-pointer ms-2" onclick="deleteSubcategory('${categoryId}', '${doc.id}')"></i>
+                  </span>
+                </div>
+              `;
+            });
+            subContainer.innerHTML = html;
+          });
+      }
+
+      // Agregar Categoría
+      document.getElementById("btnAddCategory").addEventListener("click", function () {
+        Swal.fire({
+          title: "Agregar Categoría",
+          input: "text",
+          inputPlaceholder: "Nombre de la categoría",
+          showCancelButton: true,
+          confirmButtonText: "Agregar",
+          preConfirm: (name) => {
+            if (!name) {
+              Swal.showValidationMessage("Por favor ingresa un nombre");
+            }
+            return name;
+          },
+        }).then((result) => {
+          if (result.isConfirmed) {
+            db.collection("categories").add({
+              name: result.value,
+              createdAt: Date.now(),
+            });
+          }
+        });
+      });
+
+      // Agregar Subcategoría
+      function addSubcategoryPrompt(categoryId) {
+        Swal.fire({
+          title: "Agregar Subcategoría",
+          input: "text",
+          inputPlaceholder: "Nombre de la subcategoría",
+          showCancelButton: true,
+          confirmButtonText: "Agregar",
+          preConfirm: (name) => {
+            if (!name) {
+              Swal.showValidationMessage("Por favor ingresa un nombre");
+            }
+            return name;
+          },
+        }).then((result) => {
+          if (result.isConfirmed) {
+            db.collection("categories")
+              .doc(categoryId)
+              .collection("subcategories")
+              .add({
+                name: result.value,
+                createdAt: Date.now(),
+              });
+          }
+        });
+      }
+
+      // Editar Categoría
+      function editCategory(categoryId, currentName) {
+        Swal.fire({
+          title: "Editar Categoría",
+          input: "text",
+          inputValue: currentName,
+          showCancelButton: true,
+          confirmButtonText: "Guardar",
+          preConfirm: (name) => {
+            if (!name) {
+              Swal.showValidationMessage("Por favor ingresa un nombre");
+            }
+            return name;
+          },
+        }).then((result) => {
+          if (result.isConfirmed) {
+            db.collection("categories").doc(categoryId).update({
+              name: result.value,
+            });
+          }
+        });
+      }
+
+      // Editar Subcategoría
+      function editSubcategory(categoryId, subcategoryId, currentName) {
+        Swal.fire({
+          title: "Editar Subcategoría",
+          input: "text",
+          inputValue: currentName,
+          showCancelButton: true,
+          confirmButtonText: "Guardar",
+          preConfirm: (name) => {
+            if (!name) {
+              Swal.showValidationMessage("Por favor ingresa un nombre");
+            }
+            return name;
+          },
+        }).then((result) => {
+          if (result.isConfirmed) {
+            db.collection("categories")
+              .doc(categoryId)
+              .collection("subcategories")
+              .doc(subcategoryId)
+              .update({
+                name: result.value,
+              });
+          }
+        });
+      }
+
+      // Eliminar Categoría (y sus subcategorías)
+      function deleteCategory(categoryId) {
+        Swal.fire({
+          title: "¿Estás seguro?",
+          text: "Esta acción eliminará la categoría y todas sus subcategorías.",
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonText: "Sí, eliminar",
+          cancelButtonText: "Cancelar",
+        }).then((result) => {
+          if (result.isConfirmed) {
+            // Primero eliminar las subcategorías
+            db.collection("categories")
+              .doc(categoryId)
+              .collection("subcategories")
+              .get()
+              .then((snapshot) => {
+                snapshot.forEach((doc) => {
+                  doc.ref.delete();
+                });
+              })
+              .then(() => {
+                // Eliminar la categoría
+                db.collection("categories").doc(categoryId).delete();
+              });
+          }
+        });
+      }
+
+      // Eliminar Subcategoría
+      function deleteSubcategory(categoryId, subcategoryId) {
+        Swal.fire({
+          title: "¿Estás seguro?",
+          text: "Esta acción eliminará la subcategoría.",
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonText: "Sí, eliminar",
+          cancelButtonText: "Cancelar",
+        }).then((result) => {
+          if (result.isConfirmed) {
+            db.collection("categories")
+              .doc(categoryId)
+              .collection("subcategories")
+              .doc(subcategoryId)
+              .delete();
+          }
+        });
+      }
+
+      // Escuchar cambios en la colección de categorías en tiempo real
+      function listenCategories() {
+        if (unsubscribeCategories) unsubscribeCategories();
+        let sortBy = sortSelect.value;
+        let query;
+        if (sortBy === "name") {
+          query = db.collection("categories").orderBy("name");
+        } else {
+          query = db.collection("categories").orderBy("createdAt");
+        }
+        unsubscribeCategories = query.onSnapshot((snapshot) => {
+          categoriesData = [];
+          snapshot.forEach((doc) => {
+            let category = doc.data();
+            category.id = doc.id;
+            categoriesData.push(category);
+          });
+          renderCategories();
+        });
+      }
+
+      // Eventos para búsqueda y ordenamiento
+      searchInput.addEventListener("input", renderCategories);
+      sortSelect.addEventListener("change", listenCategories);
+
+      // Toggle de modo oscuro
+      darkModeSwitch.addEventListener("change", function () {
+        if (this.checked) {
+          document.body.classList.add("dark-mode");
+          document.querySelectorAll(".card").forEach((card) => {
+            card.classList.add("dark-mode");
+          });
+        } else {
+          document.body.classList.remove("dark-mode");
+          document.querySelectorAll(".card").forEach((card) => {
+            card.classList.remove("dark-mode");
+          });
+        }
+      });
+
+      // Inicializar la escucha de categorías
+      listenCategories();
+    </script>
+  </body>
+</html>

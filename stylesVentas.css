@@ -1,0 +1,61 @@
+/* stylesVentas.css */
+
+/* General */
+body {
+    background-color: #f8f9fa;
+    font-family: 'Arial', sans-serif;
+  }
+  
+  /* Sidebar */
+  .sidebar {
+    height: 100vh;
+    border-right: 1px solid #dee2e6;
+  }
+  .nav-link.active {
+    font-weight: bold;
+    background-color: #e9ecef;
+  }
+  
+  /* Contenido Principal */
+  main {
+    padding-top: 20px;
+  }
+  
+  /* Carrito de Ventas */
+  #saleCartTable {
+    background-color: #ffffff;
+  }
+  #saleCartTable th,
+  #saleCartTable td {
+    text-align: center;
+    vertical-align: middle;
+  }
+  #saleCartTable button {
+    padding: 0.25rem 0.5rem;
+  }
+  
+  /* Productos Disponibles: Tarjetas */
+  #productsContainer .card {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease;
+  }
+  #productsContainer .card:hover {
+    transform: scale(1.02);
+  }
+  #productsContainer .card-title {
+    font-size: 1.2rem;
+    font-weight: bold;
+  }
+  #productsContainer .card-text {
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Modal Finalizar Venta */
+  .modal-header {
+    background-color: #007bff;
+    color: #fff;
+  }
+  .modal-title {
+    font-weight: bold;
+  }
+  
