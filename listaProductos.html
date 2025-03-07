@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Lista de Productos</title>
+    <title>Gestión de Productos</title>
     <!-- Bootstrap CSS -->
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
@@ -14,88 +14,57 @@
     <!-- Firebase (v8) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
     <style>
       body {
         padding: 20px;
       }
-      .cursor-pointer {
-        cursor: pointer;
+      /* Resaltar la fila seleccionada */
+      .table-active {
+        background-color: #d1ecf1 !important;
       }
-      .variant-form {
+      /* Espaciado para inputs de SweetAlert */
+      .swal2-input {
         margin-bottom: 10px;
-        border: 1px solid #ccc;
-        padding: 10px;
-        border-radius: 5px;
       }
     </style>
   </head>
   <body>
     <div class="container">
-      <h1 class="mb-4">Lista de Productos</h1>
-      <div
-        class="mb-3 d-flex flex-wrap justify-content-between align-items-center gap-3"
-      >
-        <button id="btnAddProduct" class="btn btn-primary">
-          Agregar Producto
+      <h1 class="mb-4">Gestión de Productos</h1>
+      <div class="mb-3">
+        <button id="btnCrearProducto" class="btn btn-primary me-2">
+          Crear Producto
         </button>
-        <input
-          type="text"
-          id="searchInput"
-          class="form-control"
-          placeholder="Buscar productos"
-          style="max-width: 250px;"
-        />
-        <select id="filterCategory" class="form-select" style="max-width: 200px;">
-          <option value="">Filtrar por Categoría</option>
-        </select>
-        <select
-          id="filterSubcategory"
-          class="form-select"
-          style="max-width: 200px;"
-        >
-          <option value="">Filtrar por Subcategoría</option>
-        </select>
-        <select id="orderSelect" class="form-select" style="max-width: 200px;">
-          <option value="nombre">Ordenar por Nombre</option>
-          <option value="precio">Ordenar por Precio</option>
-          <option value="stock">Ordenar por Stock</option>
-        </select>
-        <div class="form-check form-switch">
-          <input
-            class="form-check-input"
-            type="checkbox"
-            id="darkModeSwitch"
-          />
-          <label class="form-check-label" for="darkModeSwitch"
-            >Modo Oscuro</label
-          >
-        </div>
+        <button id="btnIngresarStock" class="btn btn-success me-2">
+          Ingresar Stock
+        </button>
+        <button id="btnEditarProducto" class="btn btn-warning me-2">
+          Editar Producto
+        </button>
+        <button id="btnEliminarProducto" class="btn btn-danger">
+          Eliminar Producto
+        </button>
       </div>
-
       <table class="table table-bordered" id="productsTable">
         <thead class="table-light">
           <tr>
             <th>Código</th>
-            <th>Imagen</th>
-            <th>Nombre</th>
-            <th>Categoría</th>
-            <th>Subcategoría</th>
-            <th>N° Variantes</th>
-            <th>Acciones</th>
+            <th>Descripción</th>
+            <th>Talla</th>
+            <th>Precio</th>
+            <th>Stock</th>
           </tr>
         </thead>
         <tbody id="productsBody">
-          <!-- Se insertarán los productos dinámicamente -->
+          <!-- Los productos se renderizarán aquí -->
         </tbody>
       </table>
     </div>
 
     <!-- Bootstrap JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
     <script>
-      /* ------------------------- Configuración Firebase ------------------------- */
+      /* ------------------------- Configuración de Firebase ------------------------- */
       var firebaseConfig = {
         apiKey: "AIzaSyAjVTKBJwZ8qql32ZrZBy0Q1NFUYMu-Xzk",
         authDomain: "gleedb-5d36a.firebaseapp.com",
@@ -106,618 +75,242 @@
       };
       firebase.initializeApp(firebaseConfig);
       var db = firebase.firestore();
-      var storage = firebase.storage();
 
       /* ------------------------- Variables Globales ------------------------- */
-      let products = [];
-      let categoriesList = []; // Se cargarán desde la colección "categories"
+      let products = []; // Arreglo para almacenar los productos
+      let selectedProductId = null; // ID del producto seleccionado en la tabla
 
-      /* ------------------------- Función para autogenerar código automáticamente ------------------------- */
-      function generarCodigo(campo, prefijo = "") {
-        // Si el campo está vacío, genera un código único usando timestamp y un número aleatorio
-        if (!campo || campo.trim() === "") {
-          return prefijo + Date.now() + "-" + Math.floor(Math.random() * 1000);
-        }
-        return campo.trim();
+      /* ------------------------- Función para Generar Código Automático ------------------------- */
+      function generarCodigo(prefijo = "PROD-") {
+        return prefijo + Date.now() + Math.floor(Math.random() * 1000);
       }
 
-      /* ------------------------- Función para asignar código automático en variante ------------------------- */
-      function generarCodigoUnico(btn) {
-        const grupo = btn.parentElement;
-        const inputCodigo = grupo.querySelector('input[name="codigoVariante"]');
-        inputCodigo.value = generarCodigo("", "VAR-");
-      }
-
-      /* ------------------------- Función para asignar código automático en producto ------------------------- */
-      function generarCodigoProductoUnico(btn) {
-        const grupo = btn.parentElement;
-        const inputCodigo = grupo.querySelector('input[id="prodCode"]');
-        inputCodigo.value = generarCodigo("", "PROD-");
-      }
-
-      /* ------------------------- Carga de Categorías ------------------------- */
-      function loadCategories() {
-        db.collection("categories")
-          .get()
-          .then((snapshot) => {
-            categoriesList = [];
-            snapshot.forEach((doc) => {
-              let data = doc.data();
-              data.id = doc.id;
-              categoriesList.push(data);
-            });
-            populateCategoryFilters();
-          });
-      }
-
-      function populateCategoryFilters() {
-        const filterCategory = document.getElementById("filterCategory");
-        filterCategory.innerHTML = '<option value="">Filtrar por Categoría</option>';
-        categoriesList.forEach((cat) => {
-          let option = document.createElement("option");
-          option.value = cat.name;
-          option.textContent = cat.name;
-          filterCategory.appendChild(option);
-        });
-      }
-
-      /* ------------------------- Escucha de Productos ------------------------- */
+      /* ------------------------- Escuchar Cambios en Firestore ------------------------- */
       function listenProducts() {
-        db.collection("productos").onSnapshot((snapshot) => {
-          products = [];
-          snapshot.forEach((doc) => {
-            let prod = doc.data();
-            prod.id = doc.id;
-            products.push(prod);
+        db.collection("productos")
+          .orderBy("createdAt", "desc")
+          .onSnapshot((snapshot) => {
+            products = [];
+            snapshot.forEach((doc) => {
+              let prod = doc.data();
+              prod.id = doc.id;
+              products.push(prod);
+            });
+            renderProducts();
           });
-          renderProducts();
-        });
       }
 
-      /* ------------------------- Renderizado de Productos ------------------------- */
+      /* ------------------------- Renderizar la Tabla de Productos ------------------------- */
       function renderProducts() {
         const tbody = document.getElementById("productsBody");
         tbody.innerHTML = "";
-        let filtered = products.filter((prod) => {
-          let searchTerm = document.getElementById("searchInput").value.toLowerCase();
-          let filterCat = document.getElementById("filterCategory").value;
-          let filterSub = document.getElementById("filterSubcategory").value;
-          let match = prod.nombre.toLowerCase().includes(searchTerm);
-          if (filterCat) match = match && prod.categoria === filterCat;
-          if (filterSub) match = match && prod.subcategoria === filterSub;
-          return match;
-        });
-
-        // Ordenamiento
-        let orderBy = document.getElementById("orderSelect").value;
-        if (orderBy === "nombre") {
-          filtered.sort((a, b) => a.nombre.localeCompare(b.nombre));
-        } else if (orderBy === "precio") {
-          filtered.sort((a, b) => {
-            let aPrice = a.variantes && a.variantes.length > 0 ? a.variantes[0].precio : 0;
-            let bPrice = b.variantes && b.variantes.length > 0 ? b.variantes[0].precio : 0;
-            return aPrice - bPrice;
-          });
-        } else if (orderBy === "stock") {
-          filtered.sort((a, b) => {
-            let aStock = a.variantes && a.variantes.length > 0 ? a.variantes[0].stock : 0;
-            let bStock = b.variantes && b.variantes.length > 0 ? b.variantes[0].stock : 0;
-            return aStock - bStock;
-          });
-        }
-
-        filtered.forEach((prod) => {
-          let tr = document.createElement("tr");
+        products.forEach((prod) => {
+          const tr = document.createElement("tr");
           tr.innerHTML = `
-            <td>${prod.codigo || "N/A"}</td>
-            <td><img src="${prod.imagen || ''}" alt="${prod.nombre}" width="60"></td>
-            <td>${prod.nombre}</td>
-            <td>${prod.categoria}</td>
-            <td>${prod.subcategoria}</td>
-            <td>${prod.variantes ? prod.variantes.length : 0}</td>
-            <td>
-              <button class="btn btn-info btn-sm" onclick="viewProductDetails('${prod.id}')">Detalles</button>
-              <button class="btn btn-warning btn-sm" onclick="editProduct('${prod.id}')">Editar</button>
-              <button class="btn btn-success btn-sm" onclick="agregarVariante('${prod.id}')">Agregar Variante</button>
-              <button class="btn btn-danger btn-sm" onclick="deleteProduct('${prod.id}')">Eliminar</button>
-            </td>
+            <td>${prod.codigo}</td>
+            <td>${prod.descripcion}</td>
+            <td>${prod.talla || ""}</td>
+            <td>${prod.precio}</td>
+            <td>${prod.stock}</td>
           `;
+          // Agregar evento para seleccionar la fila
+          tr.addEventListener("click", () => {
+            // Quitar la clase de selección de todas las filas
+            document
+              .querySelectorAll("#productsBody tr")
+              .forEach((row) => row.classList.remove("table-active"));
+            tr.classList.add("table-active");
+            selectedProductId = prod.id;
+          });
           tbody.appendChild(tr);
         });
       }
 
-      /* ------------------------- Función para Subir Imágenes ------------------------- */
-      function uploadImage(file) {
-        return new Promise((resolve, reject) => {
-          const storageRef = storage.ref();
-          const fileRef = storageRef.child("productos/" + Date.now() + "_" + file.name);
-          fileRef.put(file)
-            .then(() => {
-              fileRef.getDownloadURL().then((url) => resolve(url));
-            })
-            .catch((error) => reject(error));
-        });
-      }
-
-      /* ------------------------- Función para Agregar Variante en el Formulario de Agregar Producto ------------------------- */
-      function addVariantField(container) {
-        let variantIndex = container.children.length;
-        let variantDiv = document.createElement("div");
-        variantDiv.className = "variant-form";
-        variantDiv.innerHTML = `
-          <div class="mb-2"><strong>Variante ${variantIndex + 1}</strong></div>
-          <div class="input-group mb-2">
-            <input type="text" class="form-control" placeholder="Código de Variante (opcional)" name="codigoVariante">
-            <button type="button" class="btn btn-outline-secondary" onclick="generarCodigoUnico(this)">Generar Código Único</button>
-          </div>
-          <input type="text" class="form-control mb-2" placeholder="Color" name="variantColor">
-          <input type="text" class="form-control mb-2" placeholder="Talla" name="variantTalla">
-          <input type="text" class="form-control mb-2" placeholder="Marca" name="variantMarca">
-          <input type="number" class="form-control mb-2" placeholder="Precio (Q)" name="variantPrecio" step="0.01">
-          <input type="number" class="form-control mb-2" placeholder="Stock" name="variantStock">
-          <input type="file" class="form-control mb-2" name="variantImage">
-        `;
-        container.appendChild(variantDiv);
-      }
-
-      /* ------------------------- Agregar Producto ------------------------- */
-      async function addProductPrompt() {
-        // Construir HTML del formulario con campo para código del producto y botón para generarlo
-        let variantsHTML = `<div id="variantsContainer"></div>
-          <button type="button" id="btnAddVariant" class="btn btn-secondary btn-sm mt-2">Agregar Variante</button>`;
-        let htmlContent = `
-          <div class="input-group mb-2">
-            <input type="text" id="prodCode" class="form-control" placeholder="Código del Producto (opcional)">
-            <button type="button" class="btn btn-outline-secondary" onclick="generarCodigoProductoUnico(this)">Generar Código Único</button>
-          </div>
-          <input type="text" id="prodName" class="swal2-input" placeholder="Nombre del producto">
-          <textarea id="prodDesc" class="swal2-textarea" placeholder="Descripción"></textarea>
-          <select id="prodCategory" class="swal2-select">
-            <option value="">Seleccione Categoría</option>`;
-        categoriesList.forEach((cat) => {
-          htmlContent += `<option value="${cat.name}" data-id="${cat.id}">${cat.name}</option>`;
-        });
-        htmlContent += `</select>
-          <select id="prodSubcategory" class="swal2-select">
-            <option value="">Seleccione Subcategoría</option>
-          </select>
-          <input type="file" id="prodImage" class="swal2-file" accept="image/*">
-          ${variantsHTML}
-        `;
+      /* ------------------------- Crear Producto ------------------------- */
+      document.getElementById("btnCrearProducto").addEventListener("click", async () => {
         const { value: formValues } = await Swal.fire({
-          title: "Agregar Producto",
-          html: htmlContent,
+          title: "Crear Producto",
+          html: `
+            <div class="input-group mb-2">
+              <input id="swal-input-codigo" class="swal2-input" placeholder="Código">
+              <button id="btnGenerarCodigo" type="button" class="btn btn-outline-secondary">Generar Código</button>
+            </div>
+            <input id="swal-input-descripcion" class="swal2-input" placeholder="Descripción">
+            <input id="swal-input-talla" class="swal2-input" placeholder="Talla (opcional)">
+            <input id="swal-input-precio" type="number" step="0.01" class="swal2-input" placeholder="Precio">
+            <input id="swal-input-stock" type="number" class="swal2-input" placeholder="Stock">
+          `,
           focusConfirm: false,
-          showCancelButton: true,
           didOpen: () => {
-            // Al cambiar la categoría, cargar las subcategorías desde Firestore
-            const prodCategory = document.getElementById("prodCategory");
-            prodCategory.addEventListener("change", async function () {
-              const subSelect = document.getElementById("prodSubcategory");
-              subSelect.innerHTML = '<option value="">Seleccione Subcategoría</option>';
-              const catId = this.options[this.selectedIndex].getAttribute("data-id");
-              if (catId) {
-                let snapshot = await db.collection("categories")
-                  .doc(catId)
-                  .collection("subcategories")
-                  .orderBy("createdAt")
-                  .get();
-                snapshot.forEach((doc) => {
-                  let data = doc.data();
-                  let option = document.createElement("option");
-                  option.value = data.name;
-                  option.textContent = data.name;
-                  subSelect.appendChild(option);
-                });
-              }
+            const btnGen = document.getElementById("btnGenerarCodigo");
+            btnGen.addEventListener("click", () => {
+              document.getElementById("swal-input-codigo").value = generarCodigo();
             });
           },
-          preConfirm: async () => {
-            const codigo = document.getElementById("prodCode").value;
-            const nombre = document.getElementById("prodName").value;
-            const descripcion = document.getElementById("prodDesc").value;
-            const categoria = document.getElementById("prodCategory").value;
-            const subcategoria = document.getElementById("prodSubcategory").value;
-            if (!nombre || !categoria || !subcategoria) {
-              Swal.showValidationMessage("Complete los campos obligatorios");
+          preConfirm: () => {
+            // Si el campo código está vacío, se genera automáticamente
+            const codigo =
+              document.getElementById("swal-input-codigo").value.trim() ||
+              generarCodigo();
+            const descripcion = document
+              .getElementById("swal-input-descripcion")
+              .value.trim();
+            const talla = document.getElementById("swal-input-talla").value.trim();
+            const precio = parseFloat(
+              document.getElementById("swal-input-precio").value
+            );
+            const stock = parseInt(
+              document.getElementById("swal-input-stock").value
+            );
+
+            if (!descripcion || isNaN(precio) || isNaN(stock)) {
+              Swal.showValidationMessage("Complete todos los campos obligatorios.");
               return;
             }
-            let imagenUrl = "";
-            const prodImageInput = document.getElementById("prodImage");
-            if (prodImageInput.files[0]) {
-              imagenUrl = await uploadImage(prodImageInput.files[0]);
+            if (stock < 0) {
+              Swal.showValidationMessage("El stock no puede ser negativo.");
+              return;
             }
-            // Obtener variantes
-            let variants = [];
-            const variantsContainer = document.getElementById("variantsContainer");
-            const variantForms = variantsContainer.querySelectorAll(".variant-form");
-            for (let vf of variantForms) {
-              const codigoVar = vf.querySelector('input[name="codigoVariante"]').value;
-              const color = vf.querySelector('input[name="variantColor"]').value;
-              const talla = vf.querySelector('input[name="variantTalla"]').value;
-              const marca = vf.querySelector('input[name="variantMarca"]').value;
-              const precio = parseFloat(vf.querySelector('input[name="variantPrecio"]').value);
-              const stock = parseInt(vf.querySelector('input[name="variantStock"]').value);
-              let variantImageUrl = "";
-              const variantImageInput = vf.querySelector('input[name="variantImage"]');
-              if (variantImageInput.files[0]) {
-                variantImageUrl = await uploadImage(variantImageInput.files[0]);
-              }
-              if (color && talla && marca && !isNaN(precio) && !isNaN(stock)) {
-                variants.push({
-                  codigo: generarCodigo(codigoVar, "VAR-"),
-                  color,
-                  talla,
-                  marca,
-                  precio,
-                  stock,
-                  imagen: variantImageUrl
-                });
-              }
+            // Validar que no exista otro producto con el mismo código
+            let exists = products.some((p) => p.codigo === codigo);
+            if (exists) {
+              Swal.showValidationMessage("Ya existe un producto con ese código.");
+              return;
             }
-            return {
-              codigo: generarCodigo(document.getElementById("prodCode").value, "PROD-"),
-              nombre,
-              descripcion,
-              categoria,
-              subcategoria,
-              imagen: imagenUrl,
-              variantes: variants,
-              createdAt: Date.now()
-            };
+            return { codigo, descripcion, talla, precio, stock };
           }
         });
         if (formValues) {
-          db.collection("productos").add(formValues);
-          Swal.fire("Producto agregado!", "", "success");
-        }
-      }
-
-      /* ------------------------- Función para Agregar Variante a Producto Existente ------------------------- */
-      async function agregarVariante(productId) {
-        const { value: variantData } = await Swal.fire({
-          title: "Agregar Variante",
-          html: `
-            <div class="input-group mb-2">
-              <input type="text" id="newVarCode" class="form-control" placeholder="Código de Variante (opcional)">
-              <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('newVarCode').value = generarCodigo('', 'VAR-')">Generar Código Único</button>
-            </div>
-            <input type="text" id="newVarColor" class="swal2-input" placeholder="Color">
-            <input type="text" id="newVarTalla" class="swal2-input" placeholder="Talla">
-            <input type="text" id="newVarMarca" class="swal2-input" placeholder="Marca">
-            <input type="number" id="newVarPrecio" class="swal2-input" placeholder="Precio (Q)" step="0.01">
-            <input type="number" id="newVarStock" class="swal2-input" placeholder="Stock">
-            <input type="file" id="newVarImage" class="swal2-file" accept="image/*">
-          `,
-          focusConfirm: false,
-          showCancelButton: true,
-          preConfirm: async () => {
-            const codigoVar = document.getElementById("newVarCode").value;
-            const color = document.getElementById("newVarColor").value;
-            const talla = document.getElementById("newVarTalla").value;
-            const marca = document.getElementById("newVarMarca").value;
-            const precio = parseFloat(document.getElementById("newVarPrecio").value);
-            const stock = parseInt(document.getElementById("newVarStock").value);
-            let variantImageUrl = "";
-            const variantImageInput = document.getElementById("newVarImage");
-            if (variantImageInput.files[0]) {
-              variantImageUrl = await uploadImage(variantImageInput.files[0]);
-            }
-            if (!color || !talla || !marca || isNaN(precio) || isNaN(stock)) {
-              Swal.showValidationMessage("Complete todos los campos obligatorios de la variante");
-              return;
-            }
-            return {
-              codigo: generarCodigo(codigoVar, "VAR-"),
-              color,
-              talla,
-              marca,
-              precio,
-              stock,
-              imagen: variantImageUrl
-            };
-          }
-        });
-        if (variantData) {
+          formValues.createdAt = Date.now();
           db.collection("productos")
-            .doc(productId)
-            .update({
-              variantes: firebase.firestore.FieldValue.arrayUnion(variantData)
-            })
+            .add(formValues)
             .then(() => {
-              Swal.fire("Variante agregada!", "", "success");
+              Swal.fire("Producto creado!", "", "success");
             })
             .catch((error) => {
-              Swal.fire("Error", error.toString(), "error");
+              Swal.fire("Error", error.message, "error");
             });
         }
-      }
+      });
+
+      /* ------------------------- Ingresar Stock ------------------------- */
+      document.getElementById("btnIngresarStock").addEventListener("click", async () => {
+        if (!selectedProductId) {
+          Swal.fire("Error", "Seleccione un producto primero.", "error");
+          return;
+        }
+        const product = products.find((p) => p.id === selectedProductId);
+        const { value: cantidad } = await Swal.fire({
+          title: "Ingresar Stock",
+          input: "number",
+          inputLabel: "Stock a ingresar",
+          inputPlaceholder: "Ingrese cantidad",
+          inputAttributes: {
+            min: 1
+          },
+          preConfirm: (value) => {
+            const num = parseInt(value);
+            if (isNaN(num) || num <= 0) {
+              Swal.showValidationMessage("Ingrese un número positivo.");
+            }
+            return num;
+          }
+        });
+        if (cantidad) {
+          const nuevoStock = product.stock + parseInt(cantidad);
+          db.collection("productos")
+            .doc(selectedProductId)
+            .update({ stock: nuevoStock })
+            .then(() => {
+              Swal.fire("Stock actualizado!", "", "success");
+            })
+            .catch((error) => {
+              Swal.fire("Error", error.message, "error");
+            });
+        }
+      });
 
       /* ------------------------- Editar Producto ------------------------- */
-      async function editProduct(productId) {
-        let prodDoc = await db.collection("productos").doc(productId).get();
-        let prodData = prodDoc.data();
-        let variantsHTML = `<div id="variantsContainer">`;
-        if (prodData.variantes) {
-          prodData.variantes.forEach((variant, index) => {
-            variantsHTML += `<div class="variant-form">
-              <div class="mb-2"><strong>Variante ${index + 1}</strong></div>
-              <div class="input-group mb-2">
-                <input type="text" class="form-control" placeholder="Código de Variante (opcional)" name="codigoVariante" value="${variant.codigo || ""}">
-                <button type="button" class="btn btn-outline-secondary" onclick="generarCodigoUnico(this)">Generar Código Único</button>
-              </div>
-              <input type="text" class="form-control mb-2" placeholder="Color" name="variantColor" value="${variant.color}">
-              <input type="text" class="form-control mb-2" placeholder="Talla" name="variantTalla" value="${variant.talla}">
-              <input type="text" class="form-control mb-2" placeholder="Marca" name="variantMarca" value="${variant.marca}">
-              <input type="number" class="form-control mb-2" placeholder="Precio (Q)" name="variantPrecio" step="0.01" value="${variant.precio}">
-              <input type="number" class="form-control mb-2" placeholder="Stock" name="variantStock" value="${variant.stock}">
-              <input type="file" class="form-control mb-2" name="variantImage">
-            </div>`;
-          });
+      document.getElementById("btnEditarProducto").addEventListener("click", async () => {
+        if (!selectedProductId) {
+          Swal.fire("Error", "Seleccione un producto para editar.", "error");
+          return;
         }
-        variantsHTML += `</div>
-          <button type="button" id="btnAddVariant" class="btn btn-secondary btn-sm mt-2">Agregar Variante</button>`;
-        let htmlContent = `
-          <div class="input-group mb-2">
-            <input type="text" id="prodCode" class="form-control" placeholder="Código del Producto (opcional)" value="${prodData.codigo || ""}">
-            <button type="button" class="btn btn-outline-secondary" onclick="generarCodigoProductoUnico(this)">Generar Código Único</button>
-          </div>
-          <input type="text" id="prodName" class="swal2-input" placeholder="Nombre del producto" value="${prodData.nombre}">
-          <textarea id="prodDesc" class="swal2-textarea" placeholder="Descripción">${prodData.descripcion}</textarea>
-          <select id="prodCategory" class="swal2-select">
-            <option value="">Seleccione Categoría</option>`;
-        categoriesList.forEach((cat) => {
-          htmlContent += `<option value="${cat.name}" data-id="${cat.id}" ${
-            cat.name === prodData.categoria ? "selected" : ""
-          }>${cat.name}</option>`;
-        });
-        htmlContent += `</select>
-          <select id="prodSubcategory" class="swal2-select">
-            <option value="">Seleccione Subcategoría</option>
-          </select>
-          <input type="file" id="prodImage" class="swal2-file" accept="image/*">
-          ${variantsHTML}
-        `;
+        const product = products.find((p) => p.id === selectedProductId);
         const { value: formValues } = await Swal.fire({
           title: "Editar Producto",
-          html: htmlContent,
+          html: `
+            <input id="swal-edit-descripcion" class="swal2-input" placeholder="Descripción" value="${product.descripcion}">
+            <input id="swal-edit-talla" class="swal2-input" placeholder="Talla (opcional)" value="${product.talla || ""}">
+            <input id="swal-edit-precio" type="number" step="0.01" class="swal2-input" placeholder="Precio" value="${product.precio}">
+            <input id="swal-edit-stock" type="number" class="swal2-input" placeholder="Stock" value="${product.stock}">
+          `,
           focusConfirm: false,
-          showCancelButton: true,
-          didOpen: () => {
-            const prodCategory = document.getElementById("prodCategory");
-            const subSelect = document.getElementById("prodSubcategory");
-            async function loadSub() {
-              subSelect.innerHTML = '<option value="">Seleccione Subcategoría</option>';
-              const catId = prodCategory.options[prodCategory.selectedIndex].getAttribute("data-id");
-              if (catId) {
-                let snapshot = await db.collection("categories").doc(catId).collection("subcategories").orderBy("createdAt").get();
-                snapshot.forEach((doc) => {
-                  let data = doc.data();
-                  let option = document.createElement("option");
-                  option.value = data.name;
-                  option.textContent = data.name;
-                  if (data.name === prodData.subcategoria) {
-                    option.selected = true;
-                  }
-                  subSelect.appendChild(option);
-                });
-              }
-            }
-            loadSub();
-            prodCategory.addEventListener("change", loadSub);
-          },
-          preConfirm: async () => {
-            const nombre = document.getElementById("prodName").value;
-            const descripcion = document.getElementById("prodDesc").value;
-            const categoria = document.getElementById("prodCategory").value;
-            const subcategoria = document.getElementById("prodSubcategory").value;
-            if (!nombre || !categoria || !subcategoria) {
-              Swal.showValidationMessage("Complete los campos obligatorios");
+          preConfirm: () => {
+            const descripcion = document
+              .getElementById("swal-edit-descripcion")
+              .value.trim();
+            const talla = document.getElementById("swal-edit-talla").value.trim();
+            const precio = parseFloat(
+              document.getElementById("swal-edit-precio").value
+            );
+            const stock = parseInt(
+              document.getElementById("swal-edit-stock").value
+            );
+
+            if (!descripcion || isNaN(precio) || isNaN(stock)) {
+              Swal.showValidationMessage("Complete todos los campos obligatorios.");
               return;
             }
-            let imagenUrl = prodData.imagen;
-            const prodImageInput = document.getElementById("prodImage");
-            if (prodImageInput.files[0]) {
-              imagenUrl = await uploadImage(prodImageInput.files[0]);
+            if (stock < 0) {
+              Swal.showValidationMessage("El stock no puede ser negativo.");
+              return;
             }
-            let variants = [];
-            const variantsContainer = document.getElementById("variantsContainer");
-            const variantForms = variantsContainer.querySelectorAll(".variant-form");
-            for (let vf of variantForms) {
-              const color = vf.querySelector('input[name="variantColor"]').value;
-              const talla = vf.querySelector('input[name="variantTalla"]').value;
-              const marca = vf.querySelector('input[name="variantMarca"]').value;
-              const precio = parseFloat(vf.querySelector('input[name="variantPrecio"]').value);
-              const stock = parseInt(vf.querySelector('input[name="variantStock"]').value);
-              let variantImageUrl = "";
-              const variantImageInput = vf.querySelector('input[name="variantImage"]');
-              if (variantImageInput.files[0]) {
-                variantImageUrl = await uploadImage(variantImageInput.files[0]);
-              }
-              if (color && talla && marca && !isNaN(precio) && !isNaN(stock)) {
-                variants.push({
-                  codigo: generarCodigo(vf.querySelector('input[name="codigoVariante"]').value, "VAR-"),
-                  color,
-                  talla,
-                  marca,
-                  precio,
-                  stock,
-                  imagen: variantImageUrl
-                });
-              }
-            }
-            return {
-              codigo: generarCodigo(document.getElementById("prodCode").value, "PROD-"),
-              nombre,
-              descripcion,
-              categoria,
-              subcategoria,
-              imagen: imagenUrl,
-              variantes: variants,
-              createdAt: prodData.createdAt
-            };
+            return { descripcion, talla, precio, stock };
           }
         });
         if (formValues) {
-          db.collection("productos").doc(productId).update(formValues);
-          Swal.fire("Producto actualizado!", "", "success");
-        }
-      }
-
-      /* ------------------------- Ver Detalles del Producto ------------------------- */
-      function viewProductDetails(productId) {
-        let prod = products.find((p) => p.id === productId);
-        if (prod) {
-          let variantsHTML = `<table class="table table-bordered">
-            <thead class="table-light">
-              <tr>
-                <th>Código</th>
-                <th>Color</th>
-                <th>Talla</th>
-                <th>Marca</th>
-                <th>Precio (Q)</th>
-                <th>Stock</th>
-              </tr>
-            </thead>
-            <tbody>`;
-          if (prod.variantes && prod.variantes.length > 0) {
-            prod.variantes.forEach((variant) => {
-              variantsHTML += `<tr>
-                <td>${variant.codigo || "N/A"}</td>
-                <td>${variant.color}</td>
-                <td>${variant.talla}</td>
-                <td>${variant.marca}</td>
-                <td>${variant.precio}</td>
-                <td>${variant.stock}</td>
-              </tr>`;
-            });
-          }
-          variantsHTML += `</tbody></table>`;
-          Swal.fire({
-            title: prod.nombre,
-            html: `<img src="${prod.imagen || ''}" alt="${prod.nombre}" width="100" class="mb-3">
-                   <p>${prod.descripcion}</p>
-                   ${variantsHTML}`,
-            width: "600px"
-          });
-        }
-      }
-
-      /* ------------------------- Eliminar Producto ------------------------- */
-      function deleteProduct(productId) {
-        Swal.fire({
-          title: "¿Estás seguro?",
-          text: "Se eliminará el producto y todas sus variantes.",
-          icon: "warning",
-          showCancelButton: true,
-          confirmButtonText: "Sí, eliminar"
-        }).then((result) => {
-          if (result.isConfirmed) {
-            db.collection("productos").doc(productId).delete();
-            Swal.fire("Producto eliminado!", "", "success");
-          }
-        });
-      }
-
-      /* ------------------------- Función para Agregar Variante a Producto Existente ------------------------- */
-      async function agregarVariante(productId) {
-        const { value: variantData } = await Swal.fire({
-          title: "Agregar Variante",
-          html: `
-            <div class="input-group mb-2">
-              <input type="text" id="newVarCode" class="form-control" placeholder="Código de Variante (opcional)">
-              <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('newVarCode').value = generarCodigo('', 'VAR-')">Generar Código Único</button>
-            </div>
-            <input type="text" id="newVarColor" class="swal2-input" placeholder="Color">
-            <input type="text" id="newVarTalla" class="swal2-input" placeholder="Talla">
-            <input type="text" id="newVarMarca" class="swal2-input" placeholder="Marca">
-            <input type="number" id="newVarPrecio" class="swal2-input" placeholder="Precio (Q)" step="0.01">
-            <input type="number" id="newVarStock" class="swal2-input" placeholder="Stock">
-            <input type="file" id="newVarImage" class="swal2-file" accept="image/*">
-          `,
-          focusConfirm: false,
-          showCancelButton: true,
-          preConfirm: async () => {
-            const codigoVar = document.getElementById("newVarCode").value;
-            const color = document.getElementById("newVarColor").value;
-            const talla = document.getElementById("newVarTalla").value;
-            const marca = document.getElementById("newVarMarca").value;
-            const precio = parseFloat(document.getElementById("newVarPrecio").value);
-            const stock = parseInt(document.getElementById("newVarStock").value);
-            let variantImageUrl = "";
-            const variantImageInput = document.getElementById("newVarImage");
-            if (variantImageInput.files[0]) {
-              variantImageUrl = await uploadImage(variantImageInput.files[0]);
-            }
-            if (!color || !talla || !marca || isNaN(precio) || isNaN(stock)) {
-              Swal.showValidationMessage("Complete todos los campos obligatorios de la variante");
-              return;
-            }
-            return {
-              codigo: generarCodigo(codigoVar, "VAR-"),
-              color,
-              talla,
-              marca,
-              precio,
-              stock,
-              imagen: variantImageUrl
-            };
-          }
-        });
-        if (variantData) {
           db.collection("productos")
-            .doc(productId)
-            .update({
-              variantes: firebase.firestore.FieldValue.arrayUnion(variantData)
-            })
+            .doc(selectedProductId)
+            .update(formValues)
             .then(() => {
-              Swal.fire("Variante agregada!", "", "success");
+              Swal.fire("Producto actualizado!", "", "success");
             })
             .catch((error) => {
-              Swal.fire("Error", error.toString(), "error");
+              Swal.fire("Error", error.message, "error");
             });
         }
-      }
+      });
 
-      /* ------------------------- Eventos para Filtros y Modo Oscuro ------------------------- */
-      document.getElementById("searchInput").addEventListener("input", renderProducts);
-      document.getElementById("filterCategory").addEventListener("change", async function () {
-        let selected = this.value;
-        const filterSub = document.getElementById("filterSubcategory");
-        filterSub.innerHTML = '<option value="">Filtrar por Subcategoría</option>';
-        if (selected) {
-          let cat = categoriesList.find((c) => c.name === selected);
-          if (cat) {
-            let snapshot = await db.collection("categories").doc(cat.id).collection("subcategories").orderBy("createdAt").get();
-            snapshot.forEach((doc) => {
-              let data = doc.data();
-              let opt = document.createElement("option");
-              opt.value = data.name;
-              opt.textContent = data.name;
-              filterSub.appendChild(opt);
-            });
-          }
+      /* ------------------------- Eliminar Producto ------------------------- */
+      document.getElementById("btnEliminarProducto").addEventListener("click", async () => {
+        if (!selectedProductId) {
+          Swal.fire("Error", "Seleccione un producto para eliminar.", "error");
+          return;
         }
-        renderProducts();
-      });
-      document.getElementById("filterSubcategory").addEventListener("change", renderProducts);
-      document.getElementById("orderSelect").addEventListener("change", renderProducts);
-      document.getElementById("darkModeSwitch").addEventListener("change", function () {
-        document.body.classList.toggle("bg-dark", this.checked);
-        document.body.classList.toggle("text-white", this.checked);
-      });
-
-      // Evento delegado para el botón "Agregar Variante" en el formulario de SweetAlert
-      document.addEventListener("click", function (e) {
-        if (e.target && e.target.id === "btnAddVariant") {
-          let container = document.getElementById("variantsContainer");
-          addVariantField(container);
+        const result = await Swal.fire({
+          title: "¿Está seguro?",
+          text: "El producto se eliminará de forma permanente.",
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonText: "Sí, eliminar",
+          cancelButtonText: "Cancelar"
+        });
+        if (result.isConfirmed) {
+          db.collection("productos")
+            .doc(selectedProductId)
+            .delete()
+            .then(() => {
+              Swal.fire("Producto eliminado!", "", "success");
+              selectedProductId = null;
+            })
+            .catch((error) => {
+              Swal.fire("Error", error.message, "error");
+            });
         }
       });
 
       /* ------------------------- Inicialización ------------------------- */
-      document.getElementById("btnAddProduct").addEventListener("click", addProductPrompt);
-      loadCategories();
       listenProducts();
     </script>
   </body>
