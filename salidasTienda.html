@@ -112,9 +112,9 @@
       let datosCliente = {};
       // Variables de control de caja
       let cajaAbierta = false;
-      let idAperturaActivo = null; // ID corto de la apertura activa
+      let idAperturaActivo = null; // ID corto entero de la apertura activa
       let montoApertura = 0;
-      let datosApertura = {}; // Guardamos datos de la apertura para el reporte
+      let datosApertura = {};
       const usuarioActual = "admin@tienda.com"; // Ejemplo
 
       /************ Funciones para generar IDs cortos ************/
@@ -416,7 +416,7 @@
         });
         let totalVenta = parseFloat(document.getElementById("totalVenta").textContent) || 0;
         resumen += `<h4>Total: Q${totalVenta.toFixed(2)}</h4>`;
-        // Selección de método de pago: Efectivo, Tarjeta o Transferencia
+        // Selección de método de pago: Efectivo, Tarjeta o Transferencia.
         const { value: pago } = await Swal.fire({
           title: "Procesar Venta",
           html: `
@@ -461,7 +461,7 @@
           }
         });
         if (!pago) return;
-        // Generar ID corto numérico para la venta (aunque no se usa para el documento de Firestore, lo incluimos en el objeto)
+        // Generar ID corto para la venta (opcional en el objeto)
         let idVenta = generarIdVentaCorta();
         let venta = {
           idVenta: idVenta,
@@ -648,7 +648,7 @@
               .then(() => {
                 cajaAbierta = true;
                 idAperturaActivo = idApertura;
-                datosApertura = apertura; // Guardar datos para el reporte
+                datosApertura = apertura;
                 Swal.fire("Caja abierta", "La apertura se ha registrado correctamente. Monto inicial: Q " + montoApertura.toFixed(2), "success");
               })
               .catch(error => {
@@ -710,10 +710,9 @@
                     totalTransferencia += venta.total;
                   }
                 });
+                // Total Sistema es la suma de todas las ventas registradas (efectivo, tarjeta y transferencia)
                 let totalGeneral = totalEfectivo + totalTarjeta + totalTransferencia;
-                // Monto esperado en caja = montoApertura + totalEfectivo (solo efectivo se cuenta en caja)
-                let montoEsperado = montoApertura + totalEfectivo;
-                let diferencia = montoFinal - montoEsperado;
+                let diferencia = montoFinal - totalGeneral;
                 let now = new Date();
                 let fechaCierreReal = now.toISOString().split("T")[0];
                 let horaCierre = now.toTimeString().split(" ")[0];
@@ -753,9 +752,8 @@
         });
       }
 
-      // Función para mostrar el reporte de cierre con el formato solicitado
+      // Función para mostrar el reporte de cierre en un modal y permitir descarga en PDF
       function mostrarReporteCierre(ventas, cierre) {
-        // Construir HTML del reporte
         let htmlReporte = `
           <div class="container">
             <!-- Sección de Apertura -->
@@ -786,24 +784,33 @@
               </div>
             </div>
             <div class="row mb-3">
-              <div class="col-md-4 summary-box bg-light">
+              <div class="col-md-6 summary-box bg-light">
                 <strong>Venta Tarjeta:</strong> Q <span id="ventaTarjeta">${cierre.totalTarjeta.toFixed(2)}</span>
               </div>
-              <div class="col-md-4 summary-box bg-light">
+              <div class="col-md-6 summary-box bg-light">
                 <strong>Venta Transferencia:</strong> Q <span id="ventaTransferencia">${cierre.totalTransferencia.toFixed(2)}</span>
               </div>
-              <div class="col-md-4 summary-box bg-light">
-                <strong>Efectivo Pedido:</strong> Q <span id="efectivoPedido">${cierre.montoFinal.toFixed(2)}</span>
+            </div>
+            <!-- Totales del Sistema vs. Total en Caja -->
+            <div class="row mb-3">
+              <div class="col-md-6 summary-box bg-light">
+                <strong>Total Sistema:</strong> Q <span id="totalSistema">${cierre.totalGeneral.toFixed(2)}</span>
+              </div>
+              <div class="col-md-6 summary-box bg-light">
+                <strong>Total Cajero:</strong> Q <span id="totalCajero">${cierre.montoFinal.toFixed(2)}</span>
               </div>
             </div>
-            <!-- Detalles de Operaciones -->
+            <div class="row mb-3">
+              <div class="col-md-12 summary-box bg-light">
+                <strong>Diferencia de Caja:</strong> Q <span id="diferenciaCaja">${cierre.diferencia.toFixed(2)}</span>
+              </div>
+            </div>
+            <!-- Detalles de Operaciones (se quitan Tipo de Operación y Moneda) -->
             <h4>Detalles de Operaciones</h4>
             <table class="table table-bordered">
               <thead>
                 <tr>
                   <th>N° Documento</th>
-                  <th>Tipo Operación</th>
-                  <th>Moneda</th>
                   <th>Forma de Pago</th>
                   <th>Monto Pagado</th>
                   <th>Equivalencia en Caja</th>
@@ -811,13 +818,10 @@
               </thead>
               <tbody>`;
         ventas.forEach(v => {
-          // Asumimos "FV" para el tipo de operación y "Q" como moneda.
           let equivalencia = (v.metodo_pago.toLowerCase() === "efectivo") ? parseFloat(v.total).toFixed(2) : "-";
           htmlReporte += `
                 <tr>
                   <td>${v.id}</td>
-                  <td>FV</td>
-                  <td>Q</td>
                   <td>${v.metodo_pago}</td>
                   <td>Q ${parseFloat(v.total).toFixed(2)}</td>
                   <td>${equivalencia}</td>
@@ -826,18 +830,6 @@
         htmlReporte += `
               </tbody>
             </table>
-            <!-- Totales del Sistema vs. Total en Caja -->
-            <div class="row mb-3">
-              <div class="col-md-4 summary-box bg-light">
-                <strong>Total Sistema:</strong> Q <span id="totalSistema">${cierre.totalGeneral.toFixed(2)}</span>
-              </div>
-              <div class="col-md-4 summary-box bg-light">
-                <strong>Total Cajero:</strong> Q <span id="totalCajero">${cierre.montoFinal.toFixed(2)}</span>
-              </div>
-              <div class="col-md-4 summary-box bg-light">
-                <strong>Diferencia de Caja:</strong> Q <span id="diferenciaCaja">${cierre.diferencia.toFixed(2)}</span>
-              </div>
-            </div>
             <br>
             <button class="btn btn-primary" onclick="descargarReporteCierre(${encodeURIComponent(JSON.stringify(ventas))}, ${encodeURIComponent(JSON.stringify(cierre))})">Descargar Reporte PDF</button>
           </div>
@@ -874,6 +866,7 @@
         y += 7;
         doc.text(`Total Transferencia: Q ${cierre.totalTransferencia.toFixed(2)}`, 10, y);
         y += 7;
+        // Total Sistema es la suma de todas las ventas registradas (efectivo, tarjeta y transferencia)
         doc.text(`Total Sistema: Q ${cierre.totalGeneral.toFixed(2)}`, 10, y);
         y += 7;
         doc.text(`Monto Final (Efectivo): Q ${cierre.montoFinal.toFixed(2)}`, 10, y);

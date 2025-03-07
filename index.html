@@ -3,907 +3,130 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Sistema de Ventas con Apertura y Cierre de Caja</title>
+    <title>Proyecto - Menú Principal</title>
     <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <!-- SweetAlert2 -->
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <!-- Firebase (v8) -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-    <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <!-- jsPDF para generar PDF -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
     <style>
-      body { padding: 20px; }
-      .card-product { margin-bottom: 15px; }
-      .pointer { cursor: pointer; }
-      .filter-input { margin-bottom: 10px; }
-      .card-product .card-body { padding: 10px; }
-      .summary-box { border: 1px solid #ddd; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
-      .bg-light { background-color: #f8f9fa !important; }
+      /* Estilos para el menú fijo y el contenedor de contenido */
+      body {
+        display: flex;
+        margin: 0;
+        min-height: 100vh;
+      }
+      /* Menú lateral fijo */
+      #sidebar {
+        width: 250px;
+        background-color: #343a40;
+        color: #fff;
+        position: fixed;
+        height: 100vh;
+        overflow-y: auto;
+        padding: 20px;
+      }
+      #sidebar h2 {
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+      }
+      #sidebar ul {
+        padding: 0;
+        list-style: none;
+      }
+      #sidebar ul li a {
+        display: block;
+        padding: 10px 15px;
+        color: #fff;
+        text-decoration: none;
+        border-radius: 4px;
+        margin-bottom: 5px;
+      }
+      #sidebar ul li a:hover {
+        background-color: #495057;
+      }
+      /* Submenú desplegable */
+      .submenu a {
+        padding-left: 35px;
+        font-size: 0.9rem;
+      }
+      /* Contenedor principal: se desplaza a la derecha del menú */
+      #content {
+        margin-left: 250px;
+        padding: 20px;
+        width: calc(100% - 250px);
+      }
+      /* Ajusta el iframe para ocupar casi todo el espacio vertical */
+      #contentFrame {
+        width: 100%;
+        height: 90vh;
+        border: none;
+      }
     </style>
   </head>
   <body>
-    <div class="container-fluid">
-      <div class="row">
-        <!-- Lado Izquierdo: Carrito, Datos del Cliente y Control de Caja -->
-        <div class="col-md-5 border-end">
-          <h2>Carrito de Venta</h2>
-          <table class="table table-sm" id="cartTable">
-            <thead>
-              <tr>
-                <th>Producto</th>
-                <th>Variante</th>
-                <th>Cant.</th>
-                <th>Precio Unitario (Q)</th>
-                <th>Subtotal (Q)</th>
-                <th>Remover</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-          <h4>Total: Q <span id="totalVenta">0.00</span></h4>
-          <!-- Botones para capturar datos y procesar venta -->
-          <button class="btn btn-primary mt-2" onclick="capturarDatosCliente()">Datos del Cliente</button>
-          <button class="btn btn-success mt-2" onclick="procesarVenta()">Procesar Venta</button>
-          <hr>
-          <!-- Botones de Apertura y Cierre de Caja -->
-          <button class="btn btn-warning mt-2" onclick="abrirCaja()">Abrir Caja</button>
-          <button class="btn btn-danger mt-2" onclick="cerrarCaja()">Cerrar Caja</button>
-        </div>
-        <!-- Lado Derecho: Productos Disponibles -->
-        <div class="col-md-7">
-          <h2>Productos Disponibles</h2>
-          <!-- Filtros avanzados -->
-          <div class="row">
-            <div class="col-md-4">
-              <input type="text" id="filterNombre" class="form-control filter-input" placeholder="Buscar por nombre o código">
-            </div>
-            <div class="col-md-3">
-              <select id="filterCategoria" class="form-select filter-input">
-                <option value="">Categoría</option>
-              </select>
-            </div>
-            <div class="col-md-3">
-              <select id="filterSubcategoria" class="form-select filter-input">
-                <option value="">Subcategoría</option>
-              </select>
-            </div>
-            <div class="col-md-2">
-              <input type="number" id="filterPrecioMin" class="form-control filter-input" placeholder="Precio min">
-            </div>
-            <div class="col-md-2">
-              <input type="number" id="filterPrecioMax" class="form-control filter-input" placeholder="Precio max">
-            </div>
-            <div class="col-md-2">
-              <input type="number" id="filterStock" class="form-control filter-input" placeholder="Stock mínimo">
-            </div>
-          </div>
-          <div id="productosContainer" class="row">
-            <!-- Se mostrarán los productos en tarjetas -->
-          </div>
-        </div>
-      </div>
+    <!-- Menú fijo lateral -->
+    <nav id="sidebar">
+      <h2>Menú Principal</h2>
+      <ul>
+        <li>
+          <!-- Opción principal: Productos -->
+          <a class="dropdown-toggle" href="#" data-bs-toggle="collapse" data-bs-target="#submenuProductos" aria-expanded="false">
+            Productos
+          </a>
+          <!-- Submenú de Productos -->
+          <ul class="collapse submenu" id="submenuProductos">
+            <li>
+              <a href="listaProductos.html" target="contentFrame">Lista de Productos</a>
+            </li>
+            <li>
+              <a href="categorias.html" target="contentFrame">Categorías</a>
+            </li>
+          </ul>
+        </li>
+        <li>
+          <!-- Opción principal: Movimientos -->
+          <a class="dropdown-toggle" href="#" data-bs-toggle="collapse" data-bs-target="#submenuMovimientos" aria-expanded="false">
+            Movimientos
+          </a>
+          <!-- Submenú de Movimientos -->
+          <ul class="collapse submenu" id="submenuMovimientos">
+            <li>
+              <a href="realizarMovimiento.html" target="contentFrame">Realizar Movimiento</a>
+            </li>
+            <li>
+              <a href="historiasMovimientos.html" target="contentFrame">Historias de Movimientos</a>
+            </li>
+          </ul>
+        </li>
+        <li>
+          <!-- Opción principal: Salidas Tienda -->
+          <a class="dropdown-toggle" href="#" data-bs-toggle="collapse" data-bs-target="#submenuSalidasTienda" aria-expanded="false">
+            Salidas Tienda
+          </a>
+          <!-- Submenú de Salidas Tienda -->
+          <ul class="collapse submenu" id="submenuSalidasTienda">
+            <li>
+              <a href="salidasTienda.html" target="contentFrame">Salidas Tienda</a>
+            </li>
+            <li>
+              <a href="ventasHistorial.html" target="contentFrame">Ventas Historial</a>
+            </li>
+            <li>
+              <a href="cierre.html" target="contentFrame">Cierre</a>
+            </li>
+          </ul>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- Contenedor de contenido principal -->
+    <div id="content">
+      <!-- Página por defecto -->
+      <iframe id="contentFrame" name="contentFrame" src="listaProductos.html"></iframe>
     </div>
 
-    <!-- Bootstrap JS Bundle -->
+    <!-- Bootstrap JS Bundle (incluye Popper) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
-    <!-- Lógica de la Aplicación -->
-    <script>
-      /************ Configuración de Firebase ************/
-      var firebaseConfig = {
-        apiKey: "AIzaSyAjVTKBJwZ8qql32ZrZBy0Q1NFUYMu-Xzk",
-        authDomain: "gleedb-5d36a.firebaseapp.com",
-        projectId: "gleedb-5d36a",
-        storageBucket: "gleedb-5d36a",
-        messagingSenderId: "1090238022032",
-        appId: "1:1090238022032:web:c637b0a6dfe06be5287315"
-      };
-      firebase.initializeApp(firebaseConfig);
-      var db = firebase.firestore();
-
-      /************ Variables Globales ************/
-      let productos = [];
-      let categorias = [];
-      let cart = [];
-      let datosCliente = {};
-      // Variables de control de caja
-      let cajaAbierta = false;
-      let idAperturaActivo = null; // ID corto entero de la apertura activa
-      let montoApertura = 0;
-      let datosApertura = {};
-      const usuarioActual = "admin@tienda.com"; // Ejemplo
-
-      /************ Funciones para generar IDs cortos ************/
-      function generarIdCorto() {
-        // Genera un entero aleatorio entre 10000 y 99999
-        return Math.floor(Math.random() * 90000) + 10000;
-      }
-      function generarIdVentaCorta() {
-        // Genera un entero aleatorio entre 1000 y 9999 para la venta
-        return Math.floor(Math.random() * 9000) + 1000;
-      }
-
-      /************ Funciones Auxiliares ************/
-      function generarCodigo(campo, prefijo = "") {
-        if (!campo || campo.trim() === "") {
-          return prefijo + Date.now() + "-" + Math.floor(Math.random() * 1000);
-        }
-        return campo.trim();
-      }
-
-      /************ Carga de Datos: Categorías y Productos ************/
-      async function loadCategorias() {
-        const snapshot = await db.collection("categories").get();
-        categorias = [];
-        snapshot.forEach(doc => {
-          let data = doc.data();
-          data.id = doc.id;
-          categorias.push(data);
-        });
-        populateFilters();
-      }
-      function populateFilters() {
-        let filterCategoria = document.getElementById("filterCategoria");
-        let filterSubcategoria = document.getElementById("filterSubcategoria");
-        filterCategoria.innerHTML = `<option value="">Categoría</option>`;
-        filterSubcategoria.innerHTML = `<option value="">Subcategoría</option>`;
-        categorias.forEach(cat => {
-          let option = document.createElement("option");
-          option.value = cat.name;
-          option.textContent = cat.name;
-          filterCategoria.appendChild(option);
-          if (cat.subcategorias) {
-            cat.subcategorias.forEach(sub => {
-              let opt = document.createElement("option");
-              opt.value = sub;
-              opt.textContent = sub;
-              filterSubcategoria.appendChild(opt);
-            });
-          }
-        });
-      }
-      async function loadProductos() {
-        const snapshot = await db.collection("productos").get();
-        productos = [];
-        snapshot.forEach(doc => {
-          let prod = doc.data();
-          prod.id = doc.id;
-          productos.push(prod);
-        });
-        renderProductos();
-      }
-      function renderProductos() {
-        let container = document.getElementById("productosContainer");
-        container.innerHTML = "";
-        let nombreFilter = document.getElementById("filterNombre").value.toLowerCase();
-        let catFilter = document.getElementById("filterCategoria").value;
-        let subFilter = document.getElementById("filterSubcategoria").value;
-        let precioMin = parseFloat(document.getElementById("filterPrecioMin").value) || 0;
-        let precioMax = parseFloat(document.getElementById("filterPrecioMax").value) || Infinity;
-        let stockMin = parseInt(document.getElementById("filterStock").value) || 0;
-        let filtered = productos.filter(prod => {
-          let matchNombre = prod.nombre.toLowerCase().includes(nombreFilter) || (prod.codigo || "").toLowerCase().includes(nombreFilter);
-          let matchCat = !catFilter || prod.categoria === catFilter;
-          let matchSub = !subFilter || prod.subcategoria === subFilter;
-          let variantMatch = false;
-          if (prod.variantes && prod.variantes.length > 0) {
-            prod.variantes.forEach(variant => {
-              if (variant.precio >= precioMin && variant.precio <= precioMax && variant.stock >= stockMin) {
-                variantMatch = true;
-              }
-            });
-          }
-          return matchNombre && matchCat && matchSub && variantMatch;
-        });
-        filtered.forEach(prod => {
-          let card = document.createElement("div");
-          card.className = "col-md-6 mb-3";
-          let imgTag = prod.imagen ? `<img src="${prod.imagen}" class="card-img-top" alt="${prod.nombre}" style="height:150px; object-fit:cover;">` : "";
-          card.innerHTML = `
-            <div class="card">
-              ${imgTag}
-              <div class="card-body">
-                <h5 class="card-title">${prod.nombre} <small>${prod.codigo || "N/A"}</small></h5>
-                <p class="card-text">
-                  <strong>Categoría:</strong> ${prod.categoria}<br>
-                  <strong>Subcategoría:</strong> ${prod.subcategoria}<br>
-                  <strong>Stock Total:</strong> ${prod.stock_total || 0}
-                </p>
-                <button class="btn btn-primary btn-sm" onclick="seleccionarVarianteVenta('${prod.id}')">Agregar al Carrito</button>
-              </div>
-            </div>
-          `;
-          container.appendChild(card);
-        });
-      }
-
-      /************ Funcionalidad de Ventas ************/
-      async function seleccionarVarianteVenta(productId) {
-        const prod = productos.find(p => p.id === productId);
-        if (!prod) return;
-        let htmlContent = `
-          <h4>${prod.nombre} <small>${prod.codigo || "N/A"}</small></h4>
-          <input id="swal-search-var" class="swal2-input" placeholder="Buscar por color, talla, marca o stock...">
-          <div style="max-height:300px; overflow-y:auto;">
-            <table id="tablaVariantes" class="table table-bordered">
-              <thead>
-                <tr>
-                  <th>Código</th>
-                  <th>Color</th>
-                  <th>Talla</th>
-                  <th>Marca</th>
-                  <th>Precio (Q)</th>
-                  <th>Stock</th>
-                  <th>Seleccionar</th>
-                </tr>
-              </thead>
-              <tbody>`;
-        prod.variantes.forEach((variant, index) => {
-          htmlContent += `
-            <tr>
-              <td>${variant.codigo || "N/A"}</td>
-              <td>${variant.color || "N/A"}</td>
-              <td>${variant.talla || "N/A"}</td>
-              <td>${variant.marca || "N/A"}</td>
-              <td>${variant.precio ? "Q" + variant.precio.toFixed(2) : "N/A"}</td>
-              <td>${variant.stock || 0}</td>
-              <td>
-                <button class="btn btn-sm btn-primary" data-index="${index}" data-variant='${JSON.stringify(variant)}'>
-                  Seleccionar
-                </button>
-              </td>
-            </tr>
-          `;
-        });
-        htmlContent += `
-              </tbody>
-            </table>
-          </div>
-        `;
-        await Swal.fire({
-          title: "Seleccione una Variante",
-          html: htmlContent,
-          focusConfirm: false,
-          showCancelButton: true,
-          didOpen: () => {
-            const inputSearch = document.getElementById("swal-search-var");
-            inputSearch.addEventListener("input", () => {
-              const filter = inputSearch.value.toLowerCase();
-              const rows = document.querySelectorAll("#tablaVariantes tbody tr");
-              rows.forEach(row => {
-                row.style.display = row.textContent.toLowerCase().includes(filter) ? "" : "none";
-              });
-            });
-            document.querySelectorAll("#tablaVariantes button").forEach(btn => {
-              btn.addEventListener("click", () => {
-                const variantData = JSON.parse(btn.getAttribute("data-variant"));
-                const variantIndex = parseInt(btn.getAttribute("data-index"));
-                Swal.close();
-                agregarAlCarrito(prod, variantData, variantIndex);
-              });
-            });
-          }
-        });
-      }
-      async function agregarAlCarrito(product, variant, variantIndex) {
-        const { value: cantidad } = await Swal.fire({
-          title: "Cantidad a Agregar",
-          input: "number",
-          inputLabel: `Ingrese la cantidad (Stock disponible: ${variant.stock})`,
-          inputAttributes: { min: 1, max: variant.stock, step: 1 },
-          inputValidator: (value) => {
-            if (!value || value <= 0) return "Ingrese una cantidad válida";
-            if (value > variant.stock) return "La cantidad excede el stock disponible";
-          }
-        });
-        if (cantidad) {
-          let existing = cart.find(item => item.productId === product.id && item.variantIndex === variantIndex);
-          if (existing) {
-            if (existing.cantidad + parseInt(cantidad) > variant.stock) {
-              Swal.fire("Error", "La cantidad total excede el stock disponible", "error");
-              return;
-            }
-            existing.cantidad += parseInt(cantidad);
-          } else {
-            cart.push({
-              productId: product.id,
-              producto: product.nombre,
-              producto_codigo: product.codigo || "N/A",
-              variantIndex: variantIndex,
-              variante: {
-                codigo: variant.codigo || "N/A",
-                color: variant.color,
-                talla: variant.talla,
-                marca: variant.marca,
-                precio: variant.precio
-              },
-              cantidad: parseInt(cantidad)
-            });
-          }
-          Swal.fire("Producto agregado al carrito", "", "success");
-          renderCart();
-        }
-      }
-      function renderCart() {
-        let tbody = document.querySelector("#cartTable tbody");
-        tbody.innerHTML = "";
-        let total = 0;
-        cart.forEach((item, index) => {
-          let subtotal = item.cantidad * item.variante.precio;
-          total += subtotal;
-          let tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td>${item.producto} <br><small>${item.producto_codigo}</small></td>
-            <td>
-              Código: ${item.variante.codigo} <br>
-              Color: ${item.variante.color} <br>
-              Talla: ${item.variante.talla} <br>
-              Marca: ${item.variante.marca}
-            </td>
-            <td>${item.cantidad}</td>
-            <td>${item.variante.precio ? "Q" + item.variante.precio.toFixed(2) : "N/A"}</td>
-            <td>${item.variante.precio ? "Q" + subtotal.toFixed(2) : "N/A"}</td>
-            <td>
-              <button class="btn btn-danger btn-sm" onclick="removerDelCarrito(${index})">❌</button>
-            </td>
-          `;
-          tbody.appendChild(tr);
-        });
-        document.getElementById("totalVenta").textContent = total.toFixed(2);
-      }
-      function removerDelCarrito(index) {
-        cart.splice(index, 1);
-        renderCart();
-      }
-      async function capturarDatosCliente() {
-        const { value: cliente } = await Swal.fire({
-          title: "Datos del Cliente",
-          html: `
-            <input type="text" id="clienteNombre" class="swal2-input" placeholder="Nombre y Apellido">
-            <input type="text" id="clienteTelefono" class="swal2-input" placeholder="Teléfono">
-            <input type="email" id="clienteCorreo" class="swal2-input" placeholder="Correo Electrónico (opcional)">
-            <input type="text" id="clienteDireccion" class="swal2-input" placeholder="Dirección (opcional)">
-          `,
-          focusConfirm: false,
-          preConfirm: () => {
-            const nombre = document.getElementById("clienteNombre").value;
-            const telefono = document.getElementById("clienteTelefono").value;
-            if (!nombre || !telefono) {
-              Swal.showValidationMessage("Nombre y Teléfono son obligatorios");
-              return;
-            }
-            return {
-              nombre,
-              telefono,
-              correo: document.getElementById("clienteCorreo").value,
-              direccion: document.getElementById("clienteDireccion").value
-            };
-          }
-        });
-        if (cliente) {
-          datosCliente = cliente;
-          Swal.fire("Datos del cliente guardados", "", "success");
-        }
-      }
-
-      /************ Registro de Ventas (con ID de Apertura) ************/
-      async function procesarVenta() {
-        if (!cajaAbierta || !idAperturaActivo) {
-          Swal.fire("Error", "Debes abrir la caja antes de realizar ventas.", "warning");
-          return;
-        }
-        if (cart.length === 0) {
-          Swal.fire("El carrito está vacío", "", "warning");
-          return;
-        }
-        if (!datosCliente.nombre || !datosCliente.telefono) {
-          Swal.fire("Debe capturar los datos del cliente", "", "warning");
-          return;
-        }
-        let resumen = "";
-        cart.forEach(item => {
-          resumen += `
-            <p>
-              <strong>${item.producto}</strong> (${item.producto_codigo})<br>
-              Variante: ${item.variante.codigo} - ${item.variante.color} / ${item.variante.talla} / ${item.variante.marca}<br>
-              Cantidad: ${item.cantidad} x Q${item.variante.precio.toFixed(2)} = Q${(item.cantidad * item.variante.precio).toFixed(2)}
-            </p>
-          `;
-        });
-        let totalVenta = parseFloat(document.getElementById("totalVenta").textContent) || 0;
-        resumen += `<h4>Total: Q${totalVenta.toFixed(2)}</h4>`;
-        // Permitir seleccionar método de pago: Efectivo, Tarjeta o Transferencia
-        const { value: pago } = await Swal.fire({
-          title: "Procesar Venta",
-          html: `
-            ${resumen}
-            <select id="metodoPago" class="swal2-select">
-              <option value="Efectivo" selected>Efectivo</option>
-              <option value="Tarjeta">Tarjeta</option>
-              <option value="Transferencia">Transferencia</option>
-            </select>
-            <div id="pagoEfectivoContainer">
-              <input type="number" id="montoRecibido" class="swal2-input" value="${totalVenta}" placeholder="Monto recibido (Q)">
-            </div>
-          `,
-          focusConfirm: false,
-          preConfirm: () => {
-            const metodo = document.getElementById("metodoPago").value;
-            let pagoObj = { metodo: metodo };
-            if (metodo === "Efectivo") {
-              let monto = parseFloat(document.getElementById("montoRecibido").value);
-              if (isNaN(monto) || monto < totalVenta) {
-                Swal.showValidationMessage("Monto insuficiente para cubrir el total");
-                return;
-              }
-              pagoObj.montoRecibido = monto;
-              pagoObj.cambio = monto - totalVenta;
-            }
-            return pagoObj;
-          },
-          didOpen: () => {
-            const metodoSelect = document.getElementById("metodoPago");
-            const pagoContainer = document.getElementById("pagoEfectivoContainer");
-            if (metodoSelect.value === "Efectivo") {
-              pagoContainer.style.display = "block";
-            }
-            metodoSelect.addEventListener("change", function() {
-              if (this.value === "Efectivo") {
-                pagoContainer.style.display = "block";
-              } else {
-                pagoContainer.style.display = "none";
-              }
-            });
-          }
-        });
-        if (!pago) return;
-        // Generar ID corto numérico para la venta (opcional en el objeto)
-        let idVenta = generarIdVentaCorta();
-        let venta = {
-          idVenta: idVenta,
-          fecha: new Date().toISOString(),
-          cliente: datosCliente,
-          productos: cart.map(item => ({
-            producto_id: item.productId,
-            producto_nombre: item.producto,
-            producto_codigo: item.producto_codigo,
-            variante: item.variante,
-            cantidad: item.cantidad,
-            precio_unitario: item.variante.precio,
-            subtotal: item.cantidad * item.variante.precio
-          })),
-          total: totalVenta,
-          metodo_pago: pago.metodo,
-          cambio: pago.cambio || 0,
-          usuario: usuarioActual,
-          idApertura: idAperturaActivo
-        };
-        let batch = db.batch();
-        for (let item of cart) {
-          let prodRef = db.collection("productos").doc(item.productId);
-          let prodDoc = await prodRef.get();
-          if (prodDoc.exists) {
-            let prodData = prodDoc.data();
-            let variantes = prodData.variantes;
-            if (variantes && variantes[item.variantIndex] !== undefined) {
-              variantes[item.variantIndex].stock -= item.cantidad;
-              batch.update(prodRef, { variantes: variantes });
-            }
-          }
-        }
-        let ventaRef = db.collection("ventas").doc();
-        batch.set(ventaRef, venta);
-        batch.commit().then(() => {
-          Swal.fire({
-            title: "Venta procesada!",
-            html: "Comprobante generado.<br><button class='btn btn-primary' onclick='descargarComprobante(" + JSON.stringify(venta) + ")'>Descargar Comprobante</button>",
-            icon: "success"
-          });
-          cart = [];
-          renderCart();
-        }).catch(error => {
-          Swal.fire("Error", error.toString(), "error");
-        });
-      }
-
-      /************ Función para Descargar Comprobante en PDF ************/
-      function descargarComprobante(venta) {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: [80, 300] });
-        const pageWidth = doc.internal.pageSize.getWidth();
-        let xMargin = 5, y = 10;
-        const colorLineas = [200, 200, 200], colorSeccion = [230, 230, 240];
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(12);
-        doc.text("COMPROBANTE DE VENTA", pageWidth / 2, y, { align: "center" });
-        y += 6;
-        doc.setLineWidth(0.3);
-        doc.setDrawColor(...colorLineas);
-        doc.line(xMargin, y, pageWidth - xMargin, y);
-        y += 4;
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.setFillColor(...colorSeccion);
-        doc.rect(xMargin, y - 3, pageWidth - xMargin * 2, 6, "F");
-        doc.text("Datos del Cliente", xMargin + 1, y);
-        y += 6;
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        doc.text("Fecha: " + new Date(venta.fecha).toLocaleString(), xMargin, y);
-        y += 5;
-        doc.text("Nombre: " + (venta.cliente.nombre || ""), xMargin, y);
-        y += 5;
-        doc.text("Tel: " + (venta.cliente.telefono || ""), xMargin, y);
-        y += 5;
-        if (venta.cliente.correo) { doc.text("Correo: " + venta.cliente.correo, xMargin, y); y += 5; }
-        if (venta.cliente.direccion) { doc.text("Dir: " + venta.cliente.direccion, xMargin, y); y += 5; }
-        y += 2;
-        doc.line(xMargin, y, pageWidth - xMargin, y);
-        y += 4;
-        doc.setFont("helvetica", "bold");
-        doc.setFillColor(...colorSeccion);
-        doc.rect(xMargin, y - 3, pageWidth - xMargin * 2, 6, "F");
-        doc.text("Productos", xMargin + 1, y);
-        y += 6;
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "bold");
-        doc.text("Desc.", xMargin, y);
-        doc.text("Cant", pageWidth - xMargin - 30, y, { align: "right" });
-        doc.text("P.U.", pageWidth - xMargin - 18, y, { align: "right" });
-        doc.text("Subt.", pageWidth - xMargin, y, { align: "right" });
-        y += 4;
-        doc.setDrawColor(...colorLineas);
-        doc.line(xMargin, y, pageWidth - xMargin, y);
-        y += 3;
-        doc.setFont("helvetica", "normal");
-        venta.productos.forEach((prod, index) => {
-          const precio_unitario = prod.precio_unitario !== undefined ? prod.precio_unitario : 0;
-          const subtotal = prod.subtotal !== undefined ? prod.subtotal : 0;
-          let nombre = prod.producto_nombre || "";
-          if(nombre.length > 20) { nombre = nombre.substring(0,20) + "..."; }
-          doc.text(`${index+1}. ${nombre}`, xMargin, y);
-          y += 4;
-          if (prod.variante) {
-            let varTexto = (prod.variante.codigo || "N/A") + " - " + (prod.variante.color || "") + " / " + (prod.variante.talla || "");
-            doc.setFontSize(8);
-            doc.text(varTexto, xMargin, y);
-            doc.setFontSize(9);
-            y += 4;
-          }
-          doc.text(String(prod.cantidad), pageWidth - xMargin - 30, y - 2, { align: "right" });
-          doc.text("Q" + precio_unitario.toFixed(2), pageWidth - xMargin - 18, y - 2, { align: "right" });
-          doc.text("Q" + subtotal.toFixed(2), pageWidth - xMargin, y - 2, { align: "right" });
-          y += 6;
-        });
-        doc.line(xMargin, y, pageWidth - xMargin, y);
-        y += 5;
-        doc.setFont("helvetica", "bold");
-        doc.setFillColor(...colorSeccion);
-        doc.rect(xMargin, y - 3, pageWidth - xMargin * 2, 6, "F");
-        doc.text("Resumen", xMargin + 1, y);
-        y += 6;
-        doc.setFont("helvetica", "normal");
-        doc.text("Subtotal:", pageWidth - xMargin - 20, y, { align: "right" });
-        doc.text("Q" + venta.total.toFixed(2), pageWidth - xMargin, y, { align: "right" });
-        y += 5;
-        let impuestos = 0;
-        doc.text("Impuestos:", pageWidth - xMargin - 20, y, { align: "right" });
-        doc.text("Q" + impuestos.toFixed(2), pageWidth - xMargin, y, { align: "right" });
-        y += 5;
-        let totalPagar = venta.total + impuestos;
-        doc.setFont("helvetica", "bold");
-        doc.text("Total:", pageWidth - xMargin - 20, y, { align: "right" });
-        doc.text("Q" + totalPagar.toFixed(2), pageWidth - xMargin, y, { align: "right" });
-        doc.setFont("helvetica", "normal");
-        y += 7;
-        doc.text("Método de Pago: " + venta.metodo_pago, xMargin, y);
-        if (venta.metodo_pago === "Efectivo") {
-          y += 6;
-          doc.text("Recibido: Q" + (venta.montoRecibido !== undefined ? venta.montoRecibido.toFixed(2) : "0.00"), xMargin, y);
-          y += 6;
-          doc.text("Cambio: Q" + (venta.cambio !== undefined ? venta.cambio.toFixed(2) : "0.00"), xMargin, y);
-        }
-        y += 10;
-        doc.setFont("helvetica", "italic");
-        doc.text("¡Gracias por su compra!", pageWidth / 2, y, { align: "center" });
-        doc.save("comprobante_venta_estrecho.pdf");
-      }
-
-      /************ Funcionalidad de Apertura y Cierre de Caja ************/
-      // Apertura: genera un ID corto para la apertura, guarda en Firestore y habilita ventas.
-      function abrirCaja() {
-        Swal.fire({
-          title: "Abrir Caja",
-          input: "number",
-          inputLabel: "Ingrese el monto inicial en efectivo (Q)",
-          inputAttributes: { min: 0.01, step: 0.01 },
-          preConfirm: (value) => {
-            if (!value || parseFloat(value) <= 0) {
-              Swal.showValidationMessage("Ingrese un monto válido");
-            }
-            return parseFloat(value);
-          }
-        }).then(result => {
-          if (result.isConfirmed) {
-            montoApertura = result.value;
-            let now = new Date();
-            let fecha = now.toISOString().split("T")[0];
-            let hora = now.toTimeString().split(" ")[0];
-            // Generar un ID corto entero para la apertura
-            let idApertura = generarIdCorto();
-            let apertura = {
-              idApertura: idApertura,
-              fechaApertura: fecha,
-              horaApertura: hora,
-              montoApertura: montoApertura,
-              usuario: usuarioActual,
-              activo: true
-            };
-            db.collection("aperturas").doc(idApertura.toString()).set(apertura)
-              .then(() => {
-                cajaAbierta = true;
-                idAperturaActivo = idApertura;
-                datosApertura = apertura;
-                Swal.fire("Caja abierta", "La apertura se ha registrado correctamente. Monto inicial: Q " + montoApertura.toFixed(2), "success");
-              })
-              .catch(error => {
-                Swal.fire("Error", "No se pudo abrir la caja: " + error.toString(), "error");
-              });
-          }
-        });
-      }
-
-      // Cierre: consulta las ventas asociadas a la apertura activa, calcula totales y diferencia, registra el cierre y cierra la apertura.
-      function cerrarCaja() {
-        if (!cajaAbierta || !idAperturaActivo) {
-          Swal.fire("Error", "No hay una apertura activa.", "warning");
-          return;
-        }
-        Swal.fire({
-          title: "Cerrar Caja",
-          html: `
-            <input type="date" id="fechaCierre" class="swal2-input" placeholder="Fecha de cierre">
-            <input type="number" id="montoFinal" class="swal2-input" placeholder="Monto final en caja (Q)">
-          `,
-          focusConfirm: false,
-          preConfirm: () => {
-            const fechaCierre = document.getElementById("fechaCierre").value;
-            const montoFinal = parseFloat(document.getElementById("montoFinal").value);
-            if (!fechaCierre) {
-              Swal.showValidationMessage("Debe ingresar la fecha de cierre");
-              return;
-            }
-            if (isNaN(montoFinal)) {
-              Swal.showValidationMessage("Debe ingresar un monto final válido");
-              return;
-            }
-            return { fechaCierre, montoFinal };
-          }
-        }).then(result => {
-          if (result.isConfirmed) {
-            const { fechaCierre, montoFinal } = result.value;
-            // Consultar únicamente las ventas asociadas a la apertura activa
-            db.collection("ventas")
-              .where("idApertura", "==", idAperturaActivo)
-              .get()
-              .then(snapshot => {
-                let totalEfectivo = 0, totalTarjeta = 0, totalTransferencia = 0;
-                let ventasDetalle = [];
-                if (snapshot.empty) {
-                  Swal.fire("Información", "No hay ventas registradas en esta apertura.", "info");
-                  return;
-                }
-                snapshot.forEach(doc => {
-                  let venta = doc.data();
-                  venta.id = doc.id;
-                  ventasDetalle.push(venta);
-                  if (venta.metodo_pago.toLowerCase() === "efectivo") {
-                    totalEfectivo += venta.total;
-                  } else if (venta.metodo_pago.toLowerCase() === "tarjeta") {
-                    totalTarjeta += venta.total;
-                  } else if (venta.metodo_pago.toLowerCase() === "transferencia") {
-                    totalTransferencia += venta.total;
-                  }
-                });
-                // Total sistema se calcula solo con efectivo (montoApertura + totalEfectivo)
-                let totalSistema = montoApertura + totalEfectivo;
-                let diferencia = montoFinal - totalSistema;
-                let now = new Date();
-                let fechaCierreReal = now.toISOString().split("T")[0];
-                let horaCierre = now.toTimeString().split(" ")[0];
-                let cierre = {
-                  idApertura: idAperturaActivo,
-                  fechaApertura: datosApertura.fechaApertura,
-                  horaApertura: datosApertura.horaApertura,
-                  fechaCierre: fechaCierre,
-                  horaCierre: horaCierre,
-                  totalEfectivo: totalEfectivo,
-                  totalTarjeta: totalTarjeta,
-                  totalTransferencia: totalTransferencia,
-                  totalSistema: totalSistema, // Solo efectivo + apertura
-                  montoApertura: montoApertura,
-                  montoFinal: montoFinal,
-                  diferencia: diferencia,
-                  usuario: usuarioActual
-                };
-                db.collection("cierres").add(cierre)
-                  .then(() => {
-                    // Marcar la apertura como cerrada
-                    db.collection("aperturas").doc(idAperturaActivo.toString()).update({ activo: false, fechaCierre: fechaCierre, horaCierre: horaCierre })
-                      .then(() => {
-                        mostrarReporteCierre(ventasDetalle, cierre);
-                        cajaAbierta = false;
-                        idAperturaActivo = null;
-                      });
-                  })
-                  .catch(error => {
-                    Swal.fire("Error", "No se pudo cerrar la caja: " + error.toString(), "error");
-                  });
-              })
-              .catch(error => {
-                Swal.fire("Error", "Error al consultar ventas: " + error.toString(), "error");
-              });
-          }
-        });
-      }
-
-      // Función para mostrar el reporte de cierre en un modal y permitir descarga en PDF
-      function mostrarReporteCierre(ventas, cierre) {
-        let htmlReporte = `
-          <div class="container">
-            <!-- Sección de Apertura -->
-            <div class="row mb-3">
-              <div class="col-md-3 summary-box">
-                <strong>Num. Apertura:</strong> <span id="numApertura">${cierre.idApertura}</span>
-              </div>
-              <div class="col-md-3 summary-box">
-                <strong>Nombre Cajero:</strong> <span id="nombreCajero">${usuarioActual}</span>
-              </div>
-              <div class="col-md-3 summary-box">
-                <strong>Fecha Apertura:</strong> <span id="fechaApertura">${cierre.fechaApertura} ${cierre.horaApertura}</span>
-              </div>
-              <div class="col-md-3 summary-box">
-                <strong>Fecha Cierre:</strong> <span id="fechaCierre">${cierre.fechaCierre} ${cierre.horaCierre}</span>
-              </div>
-            </div>
-            <!-- Resumen de Ventas -->
-            <div class="row mb-3">
-              <div class="col-md-4 summary-box bg-light">
-                <strong>Fondo Apertura:</strong> Q <span id="fondoApertura">${cierre.montoApertura.toFixed(2)}</span>
-              </div>
-              <div class="col-md-4 summary-box bg-light">
-                <strong>Venta Total:</strong> Q <span id="ventaTotal">${cierre.totalSistema.toFixed(2)}</span>
-              </div>
-              <div class="col-md-4 summary-box bg-light">
-                <strong>Venta Efectivo:</strong> Q <span id="ventaEfectivo">${cierre.totalEfectivo.toFixed(2)}</span>
-              </div>
-            </div>
-            <div class="row mb-3">
-              <div class="col-md-4 summary-box bg-light">
-                <strong>Venta Tarjeta:</strong> Q <span id="ventaTarjeta">${cierre.totalTarjeta.toFixed(2)}</span>
-              </div>
-              <div class="col-md-4 summary-box bg-light">
-                <strong>Venta Transferencia:</strong> Q <span id="ventaTransferencia">${cierre.totalTransferencia.toFixed(2)}</span>
-              </div>
-              <div class="col-md-4 summary-box bg-light">
-                <strong>Efectivo Pedido:</strong> Q <span id="efectivoPedido">${cierre.montoFinal.toFixed(2)}</span>
-              </div>
-            </div>
-            <!-- Detalles de Operaciones -->
-            <h4>Detalles de Operaciones</h4>
-            <table class="table table-bordered">
-              <thead>
-                <tr>
-                  <th>N° Documento</th>
-                  <th>Tipo Operación</th>
-                  <th>Moneda</th>
-                  <th>Forma de Pago</th>
-                  <th>Monto Pagado</th>
-                  <th>Equivalencia en Caja</th>
-                </tr>
-              </thead>
-              <tbody>`;
-        ventas.forEach(v => {
-          // Asumimos "FV" para Factura de Venta y "Q" como moneda; solo el efectivo se considera para caja.
-          let equivalencia = (v.metodo_pago.toLowerCase() === "efectivo") ? parseFloat(v.total).toFixed(2) : "-";
-          htmlReporte += `
-                <tr>
-                  <td>${v.id}</td>
-                  <td>FV</td>
-                  <td>Q</td>
-                  <td>${v.metodo_pago}</td>
-                  <td>Q ${parseFloat(v.total).toFixed(2)}</td>
-                  <td>${equivalencia}</td>
-                </tr>`;
-        });
-        htmlReporte += `
-              </tbody>
-            </table>
-            <!-- Totales del Sistema vs. Total en Caja -->
-            <div class="row mb-3">
-              <div class="col-md-4 summary-box bg-light">
-                <strong>Total Sistema:</strong> Q <span id="totalSistema">${(cierre.montoApertura + cierre.totalEfectivo).toFixed(2)}</span>
-              </div>
-              <div class="col-md-4 summary-box bg-light">
-                <strong>Total Cajero:</strong> Q <span id="totalCajero">${cierre.montoFinal.toFixed(2)}</span>
-              </div>
-              <div class="col-md-4 summary-box bg-light">
-                <strong>Diferencia de Caja:</strong> Q <span id="diferenciaCaja">${cierre.diferencia.toFixed(2)}</span>
-              </div>
-            </div>
-            <br>
-            <button class="btn btn-primary" onclick="descargarReporteCierre(${encodeURIComponent(JSON.stringify(ventas))}, ${encodeURIComponent(JSON.stringify(cierre))})">Descargar Reporte PDF</button>
-          </div>
-        `;
-        Swal.fire({
-          title: "Cierre Registrado y Reporte",
-          html: htmlReporte,
-          width: "80%"
-        });
-      }
-
-      // Función para descargar el reporte de cierre en PDF usando jsPDF
-      function descargarReporteCierre(ventasJSON, cierreJSON) {
-        const ventas = JSON.parse(decodeURIComponent(ventasJSON));
-        const cierre = JSON.parse(decodeURIComponent(cierreJSON));
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-        let y = 10;
-        doc.setFontSize(14);
-        doc.text(`Reporte de Ventas - Apertura ${cierre.idApertura}`, 10, y);
-        y += 10;
-        doc.setFontSize(10);
-        doc.text(`Fecha Apertura: ${cierre.fechaApertura} ${cierre.horaApertura}`, 10, y);
-        y += 7;
-        doc.text(`Fecha de Cierre: ${cierre.fechaCierre} ${cierre.horaCierre}`, 10, y);
-        y += 7;
-        doc.text(`Usuario: ${cierre.usuario}`, 10, y);
-        y += 7;
-        doc.text(`Monto Apertura: Q ${cierre.montoApertura.toFixed(2)}`, 10, y);
-        y += 7;
-        doc.text(`Total Efectivo: Q ${cierre.totalEfectivo.toFixed(2)}`, 10, y);
-        y += 7;
-        doc.text(`Total Tarjeta: Q ${cierre.totalTarjeta.toFixed(2)}`, 10, y);
-        y += 7;
-        doc.text(`Total Transferencia: Q ${cierre.totalTransferencia.toFixed(2)}`, 10, y);
-        y += 7;
-        // Mostrar solo el efectivo en Total Sistema
-        doc.text(`Total Sistema: Q ${(cierre.montoApertura + cierre.totalEfectivo).toFixed(2)}`, 10, y);
-        y += 7;
-        doc.text(`Monto Final (Efectivo): Q ${cierre.montoFinal.toFixed(2)}`, 10, y);
-        y += 7;
-        doc.text(`Diferencia: Q ${cierre.diferencia.toFixed(2)}`, 10, y);
-        y += 10;
-        doc.text("Detalles de Operaciones:", 10, y);
-        y += 7;
-        ventas.forEach(v => {
-          let linea = `${v.id} - ${v.metodo_pago} - Q ${parseFloat(v.total).toFixed(2)}`;
-          doc.text(linea, 10, y);
-          y += 7;
-          if (y > 280) { doc.addPage(); y = 10; }
-        });
-        doc.save(`Reporte_Ventas_Apertura_${cierre.idApertura}.pdf`);
-      }
-
-      /************ Inicialización ************/
-      async function initSistemaVenta() {
-        await loadCategorias();
-        await loadProductos();
-      }
-      initSistemaVenta();
-
-      // Eventos de filtros para productos
-      document.getElementById("filterNombre").addEventListener("input", renderProductos);
-      document.getElementById("filterCategoria").addEventListener("change", renderProductos);
-      document.getElementById("filterSubcategoria").addEventListener("change", renderProductos);
-      document.getElementById("filterPrecioMin").addEventListener("input", renderProductos);
-      document.getElementById("filterPrecioMax").addEventListener("input", renderProductos);
-      document.getElementById("filterStock").addEventListener("input", renderProductos);
-    </script>
   </body>
 </html>
