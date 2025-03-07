@@ -45,11 +45,6 @@
       #sidebar ul li a:hover {
         background-color: #495057;
       }
-      /* Submenú desplegable */
-      .submenu a {
-        padding-left: 35px;
-        font-size: 0.9rem;
-      }
       /* Contenedor principal: se desplaza a la derecha del menú */
       #content {
         margin-left: 250px;
@@ -70,19 +65,8 @@
       <h2>Menú Principal</h2>
       <ul>
         <li>
-          <!-- Opción principal: Productos -->
-          <a class="dropdown-toggle" href="#" data-bs-toggle="collapse" data-bs-target="#submenuProductos" aria-expanded="false">
-            Productos
-          </a>
-          <!-- Submenú de Productos -->
-          <ul class="collapse submenu" id="submenuProductos">
-            <li>
-              <a href="listaProductos.html" target="contentFrame">Lista de Productos</a>
-            </li>
-            <li>
-              <a href="categorias.html" target="contentFrame">Categorías</a>
-            </li>
-          </ul>
+          <!-- Opción: Productos sin desplegable -->
+          <a href="listaProductos.html" target="contentFrame">Productos</a>
         </li>
         <li>
           <!-- Opción principal: Movimientos -->
