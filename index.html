@@ -3,114 +3,292 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Proyecto - Menú Principal</title>
+    <title>Gestión de Productos</title>
     <!-- Bootstrap CSS -->
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
       rel="stylesheet"
     />
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Firebase (v8) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
     <style>
-      /* Estilos para el menú fijo y el contenedor de contenido */
       body {
-        display: flex;
-        margin: 0;
-        min-height: 100vh;
-      }
-      /* Menú lateral fijo */
-      #sidebar {
-        width: 250px;
-        background-color: #343a40;
-        color: #fff;
-        position: fixed;
-        height: 100vh;
-        overflow-y: auto;
         padding: 20px;
       }
-      #sidebar h2 {
-        font-size: 1.5rem;
-        margin-bottom: 1rem;
+      /* Resalta la fila seleccionada */
+      .table-active {
+        background-color: #d1ecf1 !important;
       }
-      #sidebar ul {
-        padding: 0;
-        list-style: none;
-      }
-      #sidebar ul li a {
-        display: block;
-        padding: 10px 15px;
-        color: #fff;
-        text-decoration: none;
-        border-radius: 4px;
-        margin-bottom: 5px;
-      }
-      #sidebar ul li a:hover {
-        background-color: #495057;
-      }
-      /* Contenedor principal: se desplaza a la derecha del menú */
-      #content {
-        margin-left: 250px;
-        padding: 20px;
-        width: calc(100% - 250px);
-      }
-      /* Ajusta el iframe para ocupar casi todo el espacio vertical */
-      #contentFrame {
-        width: 100%;
-        height: 90vh;
-        border: none;
+      /* Espaciado para los inputs de SweetAlert */
+      .swal2-input,
+      .swal2-select {
+        margin-bottom: 10px;
       }
     </style>
   </head>
   <body>
-    <!-- Menú fijo lateral -->
-    <nav id="sidebar">
-      <h2>Menú Principal</h2>
-      <ul>
-        <li>
-          <!-- Opción: Productos sin desplegable -->
-          <a href="listaProductos.html" target="contentFrame">Productos</a>
-        </li>
-        <li>
-          <!-- Opción principal: Movimientos -->
-          <a class="dropdown-toggle" href="#" data-bs-toggle="collapse" data-bs-target="#submenuMovimientos" aria-expanded="false">
-            Movimientos
-          </a>
-          <!-- Submenú de Movimientos -->
-          <ul class="collapse submenu" id="submenuMovimientos">
-            <li>
-              <a href="realizarMovimiento.html" target="contentFrame">Realizar Movimiento</a>
-            </li>
-            <li>
-              <a href="historiasMovimientos.html" target="contentFrame">Historias de Movimientos</a>
-            </li>
-          </ul>
-        </li>
-        <li>
-          <!-- Opción principal: Salidas Tienda -->
-          <a class="dropdown-toggle" href="#" data-bs-toggle="collapse" data-bs-target="#submenuSalidasTienda" aria-expanded="false">
-            Salidas Tienda
-          </a>
-          <!-- Submenú de Salidas Tienda -->
-          <ul class="collapse submenu" id="submenuSalidasTienda">
-            <li>
-              <a href="salidasTienda.html" target="contentFrame">Salidas Tienda</a>
-            </li>
-            <li>
-              <a href="ventasHistorial.html" target="contentFrame">Ventas Historial</a>
-            </li>
-            <li>
-              <a href="cierre.html" target="contentFrame">Cierre</a>
-            </li>
-          </ul>
-        </li>
-      </ul>
-    </nav>
-
-    <!-- Contenedor de contenido principal -->
-    <div id="content">
-      <!-- Página por defecto -->
-      <iframe id="contentFrame" name="contentFrame" src="listaProductos.html"></iframe>
+    <div class="container">
+      <h1 class="mb-4">Gestión de Productos</h1>
+      <div class="mb-3">
+        <button id="btnCrearProducto" class="btn btn-primary me-2">
+          Crear Producto
+        </button>
+        <button id="btnIngresarStock" class="btn btn-success me-2">
+          Ingresar Stock
+        </button>
+        <button id="btnEditarProducto" class="btn btn-warning me-2">
+          Editar Producto
+        </button>
+        <button id="btnEliminarProducto" class="btn btn-danger">
+          Eliminar Producto
+        </button>
+      </div>
+      <table class="table table-bordered" id="productsTable">
+        <thead class="table-light">
+          <tr>
+            <th>Código</th>
+            <th>Descripción</th>
+            <th>Talla</th>
+            <th>Precio</th>
+            <th>Stock</th>
+          </tr>
+        </thead>
+        <tbody id="productsBody">
+          <!-- Los productos se renderizarán aquí -->
+        </tbody>
+      </table>
     </div>
 
-    <!-- Bootstrap JS Bundle (incluye Popper) -->
+    <!-- Bootstrap JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      /* ------------------------- Configuración de Firebase ------------------------- */
+      var firebaseConfig = {
+        apiKey: "AIzaSyAjVTKBJwZ8qql32ZrZBy0Q1NFUYMu-Xzk",
+        authDomain: "gleedb-5d36a.firebaseapp.com",
+        projectId: "gleedb-5d36a",
+        storageBucket: "gleedb-5d36a.firebasestorage.app",
+        messagingSenderId: "1090238022032",
+        appId: "1:1090238022032:web:c637b0a6dfe06be5287315"
+      };
+      firebase.initializeApp(firebaseConfig);
+      var db = firebase.firestore();
+
+      /* ------------------------- Variables Globales ------------------------- */
+      let products = []; // Arreglo para almacenar los productos
+      let selectedProductId = null; // ID del producto seleccionado en la tabla
+
+      /* ------------------------- Escuchar Cambios en Firestore ------------------------- */
+      function listenProducts() {
+        db.collection("productos")
+          .orderBy("createdAt", "desc")
+          .onSnapshot((snapshot) => {
+            products = [];
+            snapshot.forEach((doc) => {
+              let prod = doc.data();
+              prod.id = doc.id;
+              products.push(prod);
+            });
+            renderProducts();
+          });
+      }
+
+      /* ------------------------- Renderizar la Tabla de Productos ------------------------- */
+      function renderProducts() {
+        const tbody = document.getElementById("productsBody");
+        tbody.innerHTML = "";
+        products.forEach((prod) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${prod.codigo}</td>
+            <td>${prod.descripcion}</td>
+            <td>${prod.talla || ""}</td>
+            <td>${prod.precio}</td>
+            <td>${prod.stock}</td>
+          `;
+          // Agregar evento para seleccionar la fila
+          tr.addEventListener("click", () => {
+            // Quitar la clase de selección de todas las filas
+            document
+              .querySelectorAll("#productsBody tr")
+              .forEach((row) => row.classList.remove("table-active"));
+            tr.classList.add("table-active");
+            selectedProductId = prod.id;
+          });
+          tbody.appendChild(tr);
+        });
+      }
+
+      /* ------------------------- Crear Producto ------------------------- */
+      document.getElementById("btnCrearProducto").addEventListener("click", async () => {
+        const { value: formValues } = await Swal.fire({
+          title: "Crear Producto",
+          html: `
+            <input id="swal-input-codigo" class="swal2-input" placeholder="Código (ingrese manualmente)">
+            <input id="swal-input-descripcion" class="swal2-input" placeholder="Descripción">
+            <input id="swal-input-talla" class="swal2-input" placeholder="Talla (opcional)">
+            <input id="swal-input-precio" type="number" step="0.01" class="swal2-input" placeholder="Precio">
+          `,
+          focusConfirm: false,
+          showCancelButton: true,
+          allowOutsideClick: false,
+          preConfirm: () => {
+            const codigo = document.getElementById("swal-input-codigo").value.trim();
+            const descripcion = document.getElementById("swal-input-descripcion").value.trim();
+            const talla = document.getElementById("swal-input-talla").value.trim();
+            const precio = parseFloat(document.getElementById("swal-input-precio").value);
+            if (!codigo || !descripcion || isNaN(precio)) {
+              Swal.showValidationMessage("Complete todos los campos obligatorios.");
+              return;
+            }
+            // Validar que no exista otro producto con el mismo código
+            let exists = products.some((p) => p.codigo === codigo);
+            if (exists) {
+              Swal.showValidationMessage("Ya existe un producto con ese código.");
+              return;
+            }
+            // Al crear el producto, se asigna stock 0 por defecto
+            return { codigo, descripcion, talla, precio, stock: 0 };
+          }
+        });
+        if (formValues) {
+          formValues.createdAt = Date.now();
+          db.collection("productos")
+            .add(formValues)
+            .then(() => {
+              Swal.fire("Producto creado!", "", "success");
+            })
+            .catch((error) => {
+              Swal.fire("Error", error.message, "error");
+            });
+        }
+      });
+
+      /* ------------------------- Ingresar Stock ------------------------- */
+      document.getElementById("btnIngresarStock").addEventListener("click", async () => {
+        if (!selectedProductId) {
+          Swal.fire("Error", "Seleccione un producto primero.", "error");
+          return;
+        }
+        const product = products.find((p) => p.id === selectedProductId);
+        const { value: nuevaCantidad } = await Swal.fire({
+          title: "Ingresar Stock",
+          html: `
+            <form id="ingresarStockForm" class="text-start">
+              <div class="mb-3">
+                <label for="stockInput" class="form-label">Stock a ingresar</label>
+                <input type="number" id="stockInput" class="form-control" placeholder="Ingrese cantidad" min="1">
+              </div>
+            </form>
+          `,
+          focusConfirm: false,
+          showCancelButton: true,
+          showCloseButton: true,
+          allowOutsideClick: false,
+          preConfirm: () => {
+            const value = document.getElementById("stockInput").value;
+            const num = parseInt(value);
+            if (isNaN(num) || num <= 0) {
+              Swal.showValidationMessage("Ingrese un número positivo.");
+            }
+            return num;
+          }
+        });
+        if (nuevaCantidad) {
+          const nuevoStock = product.stock + parseInt(nuevaCantidad);
+          db.collection("productos")
+            .doc(selectedProductId)
+            .update({ stock: nuevoStock })
+            .then(() => {
+              Swal.fire("Stock actualizado!", "", "success");
+            })
+            .catch((error) => {
+              Swal.fire("Error", error.message, "error");
+            });
+        }
+      });
+
+      /* ------------------------- Editar Producto ------------------------- */
+      document.getElementById("btnEditarProducto").addEventListener("click", async () => {
+        if (!selectedProductId) {
+          Swal.fire("Error", "Seleccione un producto para editar.", "error");
+          return;
+        }
+        const product = products.find((p) => p.id === selectedProductId);
+        const { value: formValues } = await Swal.fire({
+          title: "Editar Producto",
+          html: `
+            <input id="swal-edit-descripcion" class="swal2-input" placeholder="Descripción" value="${product.descripcion}">
+            <input id="swal-edit-talla" class="swal2-input" placeholder="Talla (opcional)" value="${product.talla || ""}">
+            <input id="swal-edit-precio" type="number" step="0.01" class="swal2-input" placeholder="Precio" value="${product.precio}">
+            <input id="swal-edit-stock" type="number" class="swal2-input" placeholder="Stock" value="${product.stock}">
+          `,
+          focusConfirm: false,
+          showCancelButton: true,
+          allowOutsideClick: false,
+          preConfirm: () => {
+            const descripcion = document.getElementById("swal-edit-descripcion").value.trim();
+            const talla = document.getElementById("swal-edit-talla").value.trim();
+            const precio = parseFloat(document.getElementById("swal-edit-precio").value);
+            const stock = parseInt(document.getElementById("swal-edit-stock").value);
+            if (!descripcion || isNaN(precio) || isNaN(stock)) {
+              Swal.showValidationMessage("Complete todos los campos obligatorios.");
+              return;
+            }
+            if (stock < 0) {
+              Swal.showValidationMessage("El stock no puede ser negativo.");
+              return;
+            }
+            return { descripcion, talla, precio, stock };
+          }
+        });
+        if (formValues) {
+          db.collection("productos")
+            .doc(selectedProductId)
+            .update(formValues)
+            .then(() => {
+              Swal.fire("Producto actualizado!", "", "success");
+            })
+            .catch((error) => {
+              Swal.fire("Error", error.message, "error");
+            });
+        }
+      });
+
+      /* ------------------------- Eliminar Producto ------------------------- */
+      document.getElementById("btnEliminarProducto").addEventListener("click", async () => {
+        if (!selectedProductId) {
+          Swal.fire("Error", "Seleccione un producto para eliminar.", "error");
+          return;
+        }
+        const result = await Swal.fire({
+          title: "¿Está seguro?",
+          text: "El producto se eliminará de forma permanente.",
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonText: "Sí, eliminar",
+          cancelButtonText: "Cancelar",
+          allowOutsideClick: false
+        });
+        if (result.isConfirmed) {
+          db.collection("productos")
+            .doc(selectedProductId)
+            .delete()
+            .then(() => {
+              Swal.fire("Producto eliminado!", "", "success");
+              selectedProductId = null;
+            })
+            .catch((error) => {
+              Swal.fire("Error", error.message, "error");
+            });
+        }
+      });
+
+      /* ------------------------- Inicialización ------------------------- */
+      listenProducts();
+    </script>
   </body>
 </html>
