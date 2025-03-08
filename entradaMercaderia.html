@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gestión de Pedidos e Ingreso de Stock</title>
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Firebase (v8) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <style>
+      body {
+        padding: 20px;
+      }
+      /* Resalta la fila seleccionada en la tabla */
+      .table-active {
+        background-color: #d1ecf1 !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="mb-4">Gestión de Pedidos e Ingreso de Stock</h1>
+      <!-- Filtros avanzados -->
+      <div class="row mb-3">
+        <div class="col-md-4">
+          <input
+            type="text"
+            id="searchInput"
+            class="form-control"
+            placeholder="Buscar producto (código o descripción)"
+          />
+        </div>
+        <div class="col-md-2">
+          <input
+            type="number"
+            id="filterPriceMin"
+            class="form-control"
+            placeholder="Precio Mínimo"
+          />
+        </div>
+        <div class="col-md-2">
+          <input
+            type="number"
+            id="filterPriceMax"
+            class="form-control"
+            placeholder="Precio Máximo"
+          />
+        </div>
+      </div>
+      <!-- Botones de acción -->
+      <div class="mb-3">
+        <button id="btnIngresarStock" class="btn btn-success me-2" disabled>
+          Ingresar Stock
+        </button>
+        <button id="btnAgregarProducto" class="btn btn-primary me-2">
+          Agregar Nuevo Producto
+        </button>
+      </div>
+      <!-- Tabla de productos normal -->
+      <table class="table table-bordered">
+        <thead class="table-light">
+          <tr>
+            <th>Código</th>
+            <th>Descripción</th>
+            <th>Talla</th>
+            <th>Precio</th>
+            <th>Stock</th>
+          </tr>
+        </thead>
+        <tbody id="productsBody">
+          <!-- Los productos se cargarán dinámicamente -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- jQuery (opcional, solo para facilitar algunas manipulaciones) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Bootstrap JS Bundle (incluye Popper) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      /* ------------------------- Configuración de Firebase ------------------------- */
+      var firebaseConfig = {
+        apiKey: "AIzaSyAjVTKBJwZ8qql32ZrZBy0Q1NFUYMu-Xzk",
+        authDomain: "gleedb-5d36a.firebaseapp.com",
+        projectId: "gleedb-5d36a",
+        storageBucket: "gleedb-5d36a.firebasestorage.app",
+        messagingSenderId: "1090238022032",
+        appId: "1:1090238022032:web:c637b0a6dfe06be5287315"
+      };
+      firebase.initializeApp(firebaseConfig);
+      var db = firebase.firestore();
+
+      /* ------------------------- Variables Globales ------------------------- */
+      let products = []; // Almacena los productos obtenidos de Firestore.
+      let selectedProductId = null; // ID del producto seleccionado.
+      const currentUser = "ADMIN"; // Usuario actual (placeholder).
+
+      /* ------------------------- Renderizar Productos ------------------------- */
+      function renderProducts() {
+        const tbody = document.getElementById("productsBody");
+        const searchTerm = document.getElementById("searchInput").value.toLowerCase();
+        const priceMin = parseFloat(document.getElementById("filterPriceMin").value) || 0;
+        const priceMax = parseFloat(document.getElementById("filterPriceMax").value) || Infinity;
+        tbody.innerHTML = "";
+        // Filtrar productos según búsqueda y rango de precio.
+        const filtered = products.filter((prod) => {
+          const code = prod.codigo.toLowerCase();
+          const desc = prod.descripcion.toLowerCase();
+          const price = parseFloat(prod.precio) || 0;
+          if (searchTerm && !code.includes(searchTerm) && !desc.includes(searchTerm)) {
+            return false;
+          }
+          if (price < priceMin || price > priceMax) {
+            return false;
+          }
+          return true;
+        });
+        // Renderizar cada producto en una fila.
+        filtered.forEach((prod) => {
+          const tr = document.createElement("tr");
+          tr.setAttribute("data-id", prod.id);
+          tr.innerHTML = `
+            <td>${prod.codigo}</td>
+            <td>${prod.descripcion}</td>
+            <td>${prod.talla || ""}</td>
+            <td>Q ${parseFloat(prod.precio).toFixed(2)}</td>
+            <td>${prod.stock}</td>
+          `;
+          // Al hacer clic, se selecciona la fila y se habilita el botón de Ingresar Stock.
+          tr.addEventListener("click", function () {
+            document
+              .querySelectorAll("#productsBody tr")
+              .forEach((row) => row.classList.remove("table-active"));
+            this.classList.add("table-active");
+            selectedProductId = this.getAttribute("data-id");
+            document.getElementById("btnIngresarStock").disabled = false;
+          });
+          tbody.appendChild(tr);
+        });
+      }
+
+      // Actualizar la tabla cuando se modifiquen los filtros.
+      document.getElementById("searchInput").addEventListener("input", renderProducts);
+      document.getElementById("filterPriceMin").addEventListener("input", renderProducts);
+      document.getElementById("filterPriceMax").addEventListener("input", renderProducts);
+
+      /* ------------------------- Escuchar Productos en Firestore ------------------------- */
+      function listenProducts() {
+        db.collection("productos")
+          .orderBy("createdAt", "desc")
+          .onSnapshot((snapshot) => {
+            products = [];
+            snapshot.forEach((doc) => {
+              let prod = doc.data();
+              prod.id = doc.id;
+              products.push(prod);
+            });
+            renderProducts();
+          });
+      }
+
+      /* ------------------------- Ingresar Stock ------------------------- */
+      function ingresarStock() {
+        if (!selectedProductId) {
+          Swal.fire("Error", "Seleccione un producto para ingresar stock.", "error");
+          return;
+        }
+        let product = products.find((p) => p.id === selectedProductId);
+        Swal.fire({
+          title: "Ingresar Stock",
+          html: `<input type="number" id="stockInput" class="swal2-input" placeholder="Cantidad a ingresar" min="1">`,
+          focusConfirm: false,
+          showCancelButton: true,
+          allowOutsideClick: false,
+          preConfirm: () => {
+            let qty = parseInt(document.getElementById("stockInput").value);
+            if (isNaN(qty) || qty <= 0) {
+              Swal.showValidationMessage("Ingrese una cantidad positiva.");
+            }
+            return qty;
+          }
+        }).then((result) => {
+          if (result.value) {
+            let qty = result.value;
+            let newStock = product.stock + qty;
+            db.collection("productos")
+              .doc(selectedProductId)
+              .update({ stock: newStock })
+              .then(() => {
+                // Registrar la acción en el historial.
+                db.collection("historialIngresos").add({
+                  createdAt: Date.now(),
+                  codigo: product.codigo,
+                  descripcion: product.descripcion,
+                  cantidad: qty,
+                  usuario: currentUser
+                });
+                Swal.fire("Stock ingresado!", "", "success").then(() => {
+                  // Reiniciar filtros para mostrar siempre la lista completa actualizada.
+                  document.getElementById("searchInput").value = "";
+                  document.getElementById("filterPriceMin").value = "";
+                  document.getElementById("filterPriceMax").value = "";
+                });
+              })
+              .catch((error) => {
+                Swal.fire("Error", error.message, "error");
+              });
+          }
+        });
+      }
+
+      document.getElementById("btnIngresarStock").addEventListener("click", ingresarStock);
+
+      /* ------------------------- Agregar Nuevo Producto ------------------------- */
+      document.getElementById("btnAgregarProducto").addEventListener("click", function () {
+        Swal.fire({
+          title: "Agregar Nuevo Producto",
+          html: `
+            <input id="swal-input-codigo" class="swal2-input" placeholder="Código">
+            <input id="swal-input-descripcion" class="swal2-input" placeholder="Descripción">
+            <input id="swal-input-talla" class="swal2-input" placeholder="Talla (opcional)">
+            <input id="swal-input-precio" type="number" step="0.01" class="swal2-input" placeholder="Precio">
+            <input id="swal-input-stock" type="number" class="swal2-input" placeholder="Stock inicial">
+          `,
+          focusConfirm: false,
+          showCancelButton: true,
+          allowOutsideClick: false,
+          preConfirm: () => {
+            let codigo = document
+              .getElementById("swal-input-codigo")
+              .value.trim()
+              .toUpperCase();
+            let descripcion = document
+              .getElementById("swal-input-descripcion")
+              .value.trim()
+              .toUpperCase();
+            let talla = document
+              .getElementById("swal-input-talla")
+              .value.trim()
+              .toUpperCase();
+            let precio = parseFloat(document.getElementById("swal-input-precio").value);
+            let stock = parseInt(document.getElementById("swal-input-stock").value);
+            if (!codigo || !descripcion || isNaN(precio) || isNaN(stock)) {
+              Swal.showValidationMessage("Complete todos los campos obligatorios.");
+              return;
+            }
+            if (precio <= 0) {
+              Swal.showValidationMessage("El precio debe ser mayor a 0.");
+              return;
+            }
+            if (stock < 0) {
+              Swal.showValidationMessage("El stock no puede ser negativo.");
+              return;
+            }
+            // Verificar que no exista un producto con el mismo código.
+            let exists = products.some((p) => p.codigo === codigo);
+            if (exists) {
+              Swal.showValidationMessage("Ya existe un producto con ese código.");
+              return;
+            }
+            return { codigo, descripcion, talla, precio, stock };
+          }
+        }).then((result) => {
+          if (result.value) {
+            let newProduct = result.value;
+            newProduct.createdAt = Date.now();
+            db.collection("productos")
+              .add(newProduct)
+              .then(() => {
+                // Registrar el ingreso inicial en el historial.
+                db.collection("historialIngresos").add({
+                  createdAt: Date.now(),
+                  codigo: newProduct.codigo,
+                  descripcion: newProduct.descripcion,
+                  cantidad: newProduct.stock,
+                  usuario: currentUser
+                });
+                Swal.fire("Producto agregado!", "", "success");
+              })
+              .catch((error) => {
+                Swal.fire("Error", error.message, "error");
+              });
+          }
+        });
+      });
+
+      /* ------------------------- Inicialización ------------------------- */
+      listenProducts();
+    </script>
+  </body>
+</html>
