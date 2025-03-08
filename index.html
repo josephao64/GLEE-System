@@ -106,7 +106,7 @@
             <td>${prod.codigo}</td>
             <td>${prod.descripcion}</td>
             <td>${prod.talla || ""}</td>
-            <td>${prod.precio}</td>
+            <td>Q ${parseFloat(prod.precio).toFixed(2)}</td>
             <td>${prod.stock}</td>
           `;
           // Agregar evento para seleccionar la fila
@@ -136,10 +136,23 @@
           showCancelButton: true,
           allowOutsideClick: false,
           preConfirm: () => {
-            const codigo = document.getElementById("swal-input-codigo").value.trim();
-            const descripcion = document.getElementById("swal-input-descripcion").value.trim();
-            const talla = document.getElementById("swal-input-talla").value.trim();
-            const precio = parseFloat(document.getElementById("swal-input-precio").value);
+            // Convertir a mayúsculas los campos de texto
+            const codigo = document
+              .getElementById("swal-input-codigo")
+              .value.trim()
+              .toUpperCase();
+            const descripcion = document
+              .getElementById("swal-input-descripcion")
+              .value.trim()
+              .toUpperCase();
+            const talla = document
+              .getElementById("swal-input-talla")
+              .value.trim()
+              .toUpperCase();
+            const precio = parseFloat(
+              document.getElementById("swal-input-precio").value
+            );
+
             if (!codigo || !descripcion || isNaN(precio)) {
               Swal.showValidationMessage("Complete todos los campos obligatorios.");
               return;
@@ -150,7 +163,7 @@
               Swal.showValidationMessage("Ya existe un producto con ese código.");
               return;
             }
-            // Al crear el producto, se asigna stock 0 por defecto
+            // Se asigna stock 0 por defecto al crear
             return { codigo, descripcion, talla, precio, stock: 0 };
           }
         });
@@ -230,10 +243,20 @@
           showCancelButton: true,
           allowOutsideClick: false,
           preConfirm: () => {
-            const descripcion = document.getElementById("swal-edit-descripcion").value.trim();
-            const talla = document.getElementById("swal-edit-talla").value.trim();
-            const precio = parseFloat(document.getElementById("swal-edit-precio").value);
+            // Convertir a mayúsculas la descripción y talla
+            const descripcion = document
+              .getElementById("swal-edit-descripcion")
+              .value.trim()
+              .toUpperCase();
+            const talla = document
+              .getElementById("swal-edit-talla")
+              .value.trim()
+              .toUpperCase();
+            const precio = parseFloat(
+              document.getElementById("swal-edit-precio").value
+            );
             const stock = parseInt(document.getElementById("swal-edit-stock").value);
+
             if (!descripcion || isNaN(precio) || isNaN(stock)) {
               Swal.showValidationMessage("Complete todos los campos obligatorios.");
               return;
