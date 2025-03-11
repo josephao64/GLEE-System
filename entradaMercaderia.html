@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Gestión de Pedidos e Ingreso de Stock</title>
+    <title>Registro de Facturas - Entrada de Productos</title>
     <!-- Bootstrap CSS -->
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
@@ -14,78 +14,19 @@
     <!-- Firebase (v8) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <!-- html2canvas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
       body {
         padding: 20px;
       }
-      /* Resalta la fila seleccionada en la tabla */
-      .table-active {
-        background-color: #d1ecf1 !important;
+      /* Opcional: resaltar fila de factura anulada */
+      .table-warning {
+        background-color: #ffeeba !important;
       }
     </style>
-  </head>
-  <body>
-    <div class="container">
-      <h1 class="mb-4">Gestión de Pedidos e Ingreso de Stock</h1>
-      <!-- Filtros avanzados -->
-      <div class="row mb-3">
-        <div class="col-md-4">
-          <input
-            type="text"
-            id="searchInput"
-            class="form-control"
-            placeholder="Buscar producto (código o descripción)"
-          />
-        </div>
-        <div class="col-md-2">
-          <input
-            type="number"
-            id="filterPriceMin"
-            class="form-control"
-            placeholder="Precio Mínimo"
-          />
-        </div>
-        <div class="col-md-2">
-          <input
-            type="number"
-            id="filterPriceMax"
-            class="form-control"
-            placeholder="Precio Máximo"
-          />
-        </div>
-      </div>
-      <!-- Botones de acción -->
-      <div class="mb-3">
-        <button id="btnIngresarStock" class="btn btn-success me-2" disabled>
-          Ingresar Stock
-        </button>
-        <button id="btnAgregarProducto" class="btn btn-primary me-2">
-          Agregar Nuevo Producto
-        </button>
-      </div>
-      <!-- Tabla de productos normal -->
-      <table class="table table-bordered">
-        <thead class="table-light">
-          <tr>
-            <th>Código</th>
-            <th>Descripción</th>
-            <th>Talla</th>
-            <th>Precio</th>
-            <th>Stock</th>
-          </tr>
-        </thead>
-        <tbody id="productsBody">
-          <!-- Los productos se cargarán dinámicamente -->
-        </tbody>
-      </table>
-    </div>
-
-    <!-- jQuery (opcional, solo para facilitar algunas manipulaciones) -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <!-- Bootstrap JS Bundle (incluye Popper) -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-      /* ------------------------- Configuración de Firebase ------------------------- */
+      // Conexión a Firebase con la configuración proporcionada
       var firebaseConfig = {
         apiKey: "AIzaSyAjVTKBJwZ8qql32ZrZBy0Q1NFUYMu-Xzk",
         authDomain: "gleedb-5d36a.firebaseapp.com",
@@ -96,203 +37,611 @@
       };
       firebase.initializeApp(firebaseConfig);
       var db = firebase.firestore();
+    </script>
+  </head>
+  <body>
+    <div class="container my-4">
+      <h1 class="mb-4">Registro de Facturas - Entrada de Productos</h1>
+      <div class="mb-3">
+        <button class="btn btn-primary me-2" onclick="showAddInvoiceForm()">Agregar Factura</button>
+        <!-- Botón de exportar listado, puedes implementar su lógica según tus necesidades -->
+        <button class="btn btn-success" onclick="exportInvoicesImage()">Exportar Listado</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-striped" id="facturasTable">
+          <thead>
+            <tr>
+              <th>Número</th>
+              <th>Fecha</th>
+              <th>Tienda</th>
+              <th>Estado</th>
+              <th>Productos</th>
+              <th>Total Factura</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Se llenará dinámicamente -->
+          </tbody>
+        </table>
+      </div>
+      <!-- Contenedor oculto para exportar listado de facturas como imagen -->
+      <div id="exportFacturasContainer" style="display: none;">
+        <h3 class="text-center">Facturas Registradas</h3>
+        <table class="table table-striped text-center">
+          <thead>
+            <tr>
+              <th>Número</th>
+              <th>Fecha</th>
+              <th>Tienda</th>
+              <th>Estado</th>
+              <th>Productos</th>
+              <th>Total Factura</th>
+            </tr>
+          </thead>
+          <tbody id="exportFacturasBody">
+            <!-- Se llenará dinámicamente -->
+          </tbody>
+        </table>
+      </div>
+    </div>
 
-      /* ------------------------- Variables Globales ------------------------- */
-      let products = []; // Almacena los productos obtenidos de Firestore.
-      let selectedProductId = null; // ID del producto seleccionado.
-      const currentUser = "ADMIN"; // Usuario actual (placeholder).
+    <!-- Modal para Agregar/Editar Factura -->
+    <div class="modal fade" id="invoiceModal" tabindex="-1" aria-labelledby="invoiceModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <form id="invoiceForm" novalidate>
+            <div class="modal-header">
+              <h5 class="modal-title" id="invoiceModalLabel">Agregar Factura</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+              <input type="hidden" id="invoiceId" />
+              <div class="mb-3">
+                <label for="invoiceNumber" class="form-label">Número de Factura</label>
+                <input type="text" id="invoiceNumber" class="form-control" required />
+                <div class="invalid-feedback">Ingrese el número de factura.</div>
+              </div>
+              <div class="mb-3">
+                <label for="invoiceDate" class="form-label">Fecha de Factura</label>
+                <input type="date" id="invoiceDate" class="form-control" required />
+                <div class="invalid-feedback">Ingrese la fecha.</div>
+              </div>
+              <!-- Campo para seleccionar la tienda asociada a la factura -->
+              <div class="mb-3">
+                <label for="invoiceStore" class="form-label">Tienda</label>
+                <select id="invoiceStore" class="form-select" required>
+                  <option value="">Seleccione tienda</option>
+                  <!-- Se cargarán las tiendas -->
+                </select>
+                <div class="invalid-feedback">Seleccione la tienda.</div>
+              </div>
+              <!-- Ítems de la Factura -->
+              <div class="mb-3">
+                <label class="form-label">Productos de la Factura</label>
+                <table class="table table-bordered" id="invoiceItemsTable">
+                  <thead>
+                    <tr>
+                      <th>Producto</th>
+                      <th>Cantidad</th>
+                      <th>Precio Unitario</th>
+                      <th>Total</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <!-- Se agregarán filas dinámicamente -->
+                  </tbody>
+                </table>
+                <button type="button" class="btn btn-secondary" onclick="addInvoiceItem()">Agregar Producto</button>
+              </div>
+              <div class="mb-3">
+                <label for="invoiceOverallTotal" class="form-label">Total Factura</label>
+                <input type="number" id="invoiceOverallTotal" class="form-control" readonly />
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+              <button type="button" class="btn btn-primary" onclick="saveInvoice()">Guardar Factura</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
 
-      /* ------------------------- Renderizar Productos ------------------------- */
-      function renderProducts() {
-        const tbody = document.getElementById("productsBody");
-        const searchTerm = document.getElementById("searchInput").value.toLowerCase();
-        const priceMin = parseFloat(document.getElementById("filterPriceMin").value) || 0;
-        const priceMax = parseFloat(document.getElementById("filterPriceMax").value) || Infinity;
-        tbody.innerHTML = "";
-        // Filtrar productos según búsqueda y rango de precio.
-        const filtered = products.filter((prod) => {
-          const code = prod.codigo.toLowerCase();
-          const desc = prod.descripcion.toLowerCase();
-          const price = parseFloat(prod.precio) || 0;
-          if (searchTerm && !code.includes(searchTerm) && !desc.includes(searchTerm)) {
-            return false;
+    <!-- Modal para Ver Detalles de Factura y Exportar Comprobante -->
+    <div class="modal fade" id="invoiceDetailsModal" tabindex="-1" aria-labelledby="invoiceDetailsModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="invoiceDetailsModalLabel">Detalles de Factura</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <!-- Contenedor de detalles para exportar comprobante -->
+            <div id="invoiceDetailsContainer">
+              <p><strong>Número:</strong> <span id="detailInvoiceNumber"></span></p>
+              <p><strong>Fecha:</strong> <span id="detailInvoiceDate"></span></p>
+              <p><strong>Tienda:</strong> <span id="detailInvoiceStore"></span></p>
+              <p><strong>Estado:</strong> <span id="detailInvoiceStatus"></span></p>
+              <table class="table table-bordered">
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Cantidad</th>
+                    <th>Precio Unitario</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody id="detailInvoiceItems">
+                  <!-- Se llenará dinámicamente -->
+                </tbody>
+              </table>
+              <p class="text-end"><strong>Total Factura:</strong> Q. <span id="detailInvoiceOverallTotal"></span></p>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-info" onclick="exportInvoiceComprobante()">Exportar Comprobante</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Lógica de facturas: Código completo integrado -->
+    <script>
+      // Variables globales
+      let allProducts = [];
+      let invoiceItems = [];
+
+      // Cargar productos (opcionalmente se puede filtrar por tienda)
+      async function loadAllProductsForInvoice(storeName = "") {
+        try {
+          let query = db.collection("productos").orderBy("codigo");
+          if (storeName) {
+            query = query.where("store", "==", storeName);
           }
-          if (price < priceMin || price > priceMax) {
-            return false;
-          }
-          return true;
-        });
-        // Renderizar cada producto en una fila.
-        filtered.forEach((prod) => {
-          const tr = document.createElement("tr");
-          tr.setAttribute("data-id", prod.id);
-          tr.innerHTML = `
-            <td>${prod.codigo}</td>
-            <td>${prod.descripcion}</td>
-            <td>${prod.talla || ""}</td>
-            <td>Q ${parseFloat(prod.precio).toFixed(2)}</td>
-            <td>${prod.stock}</td>
-          `;
-          // Al hacer clic, se selecciona la fila y se habilita el botón de Ingresar Stock.
-          tr.addEventListener("click", function () {
-            document
-              .querySelectorAll("#productsBody tr")
-              .forEach((row) => row.classList.remove("table-active"));
-            this.classList.add("table-active");
-            selectedProductId = this.getAttribute("data-id");
-            document.getElementById("btnIngresarStock").disabled = false;
+          const snapshot = await query.get();
+          allProducts = [];
+          snapshot.forEach((doc) => {
+            const prod = doc.data();
+            prod.id = doc.id;
+            allProducts.push(prod);
           });
-          tbody.appendChild(tr);
-        });
-      }
-
-      // Actualizar la tabla cuando se modifiquen los filtros.
-      document.getElementById("searchInput").addEventListener("input", renderProducts);
-      document.getElementById("filterPriceMin").addEventListener("input", renderProducts);
-      document.getElementById("filterPriceMax").addEventListener("input", renderProducts);
-
-      /* ------------------------- Escuchar Productos en Firestore ------------------------- */
-      function listenProducts() {
-        db.collection("productos")
-          .orderBy("createdAt", "desc")
-          .onSnapshot((snapshot) => {
-            products = [];
-            snapshot.forEach((doc) => {
-              let prod = doc.data();
-              prod.id = doc.id;
-              products.push(prod);
-            });
-            renderProducts();
-          });
-      }
-
-      /* ------------------------- Ingresar Stock ------------------------- */
-      function ingresarStock() {
-        if (!selectedProductId) {
-          Swal.fire("Error", "Seleccione un producto para ingresar stock.", "error");
-          return;
+        } catch (error) {
+          console.error("Error al cargar productos para factura:", error);
         }
-        let product = products.find((p) => p.id === selectedProductId);
-        Swal.fire({
-          title: "Ingresar Stock",
-          html: `<input type="number" id="stockInput" class="swal2-input" placeholder="Cantidad a ingresar" min="1">`,
-          focusConfirm: false,
-          showCancelButton: true,
-          allowOutsideClick: false,
-          preConfirm: () => {
-            let qty = parseInt(document.getElementById("stockInput").value);
-            if (isNaN(qty) || qty <= 0) {
-              Swal.showValidationMessage("Ingrese una cantidad positiva.");
-            }
-            return qty;
-          }
-        }).then((result) => {
-          if (result.value) {
-            let qty = result.value;
-            let newStock = product.stock + qty;
-            db.collection("productos")
-              .doc(selectedProductId)
-              .update({ stock: newStock })
-              .then(() => {
-                // Registrar la acción en el historial.
-                db.collection("historialIngresos").add({
-                  createdAt: Date.now(),
-                  codigo: product.codigo,
-                  descripcion: product.descripcion,
-                  cantidad: qty,
-                  usuario: currentUser
-                });
-                Swal.fire("Stock ingresado!", "", "success").then(() => {
-                  // Reiniciar filtros para mostrar siempre la lista completa actualizada.
-                  document.getElementById("searchInput").value = "";
-                  document.getElementById("filterPriceMin").value = "";
-                  document.getElementById("filterPriceMax").value = "";
-                });
-              })
-              .catch((error) => {
-                Swal.fire("Error", error.message, "error");
-              });
-          }
+      }
+
+      // Poblar select con lista de productos
+      function populateProductSelect(select) {
+        select.innerHTML = "";
+        const defaultOption = document.createElement("option");
+        defaultOption.value = "";
+        defaultOption.textContent = "Seleccione producto";
+        select.appendChild(defaultOption);
+        allProducts.forEach((prod) => {
+          const option = document.createElement("option");
+          option.value = prod.id;
+          option.textContent = `${prod.codigo} - ${prod.descripcion}`;
+          select.appendChild(option);
         });
       }
 
-      document.getElementById("btnIngresarStock").addEventListener("click", ingresarStock);
+      // Cargar tiendas para facturación
+      async function loadInvoiceStores() {
+        try {
+          const snapshot = await db.collection("tiendas").orderBy("nombre").get();
+          const storeSelect = document.getElementById("invoiceStore");
+          storeSelect.innerHTML = "<option value=''>Seleccione tienda</option>";
+          snapshot.forEach(doc => {
+            const store = doc.data();
+            store.id = doc.id;
+            const option = document.createElement("option");
+            option.value = store.nombre;
+            option.textContent = store.nombre;
+            storeSelect.appendChild(option);
+          });
+        } catch (error) {
+          console.error("Error al cargar tiendas para facturación:", error);
+        }
+      }
 
-      /* ------------------------- Agregar Nuevo Producto ------------------------- */
-      document.getElementById("btnAgregarProducto").addEventListener("click", function () {
-        Swal.fire({
-          title: "Agregar Nuevo Producto",
-          html: `
-            <input id="swal-input-codigo" class="swal2-input" placeholder="Código">
-            <input id="swal-input-descripcion" class="swal2-input" placeholder="Descripción">
-            <input id="swal-input-talla" class="swal2-input" placeholder="Talla (opcional)">
-            <input id="swal-input-precio" type="number" step="0.01" class="swal2-input" placeholder="Precio">
-            <input id="swal-input-stock" type="number" class="swal2-input" placeholder="Stock inicial">
-          `,
-          focusConfirm: false,
-          showCancelButton: true,
-          allowOutsideClick: false,
-          preConfirm: () => {
-            let codigo = document
-              .getElementById("swal-input-codigo")
-              .value.trim()
-              .toUpperCase();
-            let descripcion = document
-              .getElementById("swal-input-descripcion")
-              .value.trim()
-              .toUpperCase();
-            let talla = document
-              .getElementById("swal-input-talla")
-              .value.trim()
-              .toUpperCase();
-            let precio = parseFloat(document.getElementById("swal-input-precio").value);
-            let stock = parseInt(document.getElementById("swal-input-stock").value);
-            if (!codigo || !descripcion || isNaN(precio) || isNaN(stock)) {
-              Swal.showValidationMessage("Complete todos los campos obligatorios.");
-              return;
+      // Mostrar formulario de agregar factura
+      async function showAddInvoiceForm() {
+        document.getElementById("invoiceForm").reset();
+        document.getElementById("invoiceId").value = "";
+        document.querySelector("#invoiceItemsTable tbody").innerHTML = "";
+        document.getElementById("invoiceOverallTotal").value = "";
+        
+        await loadInvoiceStores();
+        
+        // Si no es admin, fija la tienda desde localStorage
+        const loggedUser = localStorage.getItem("loggedUser") || "admin";
+        if (loggedUser.toLowerCase() !== "admin") {
+          const currentStore = localStorage.getItem("currentStore") || "";
+          document.getElementById("invoiceStore").value = currentStore;
+          await loadAllProductsForInvoice();
+        } else {
+          await loadAllProductsForInvoice();
+        }
+        
+        invoiceItems = [];
+        renderInvoiceItems();
+        updateOverallTotal();
+        new bootstrap.Modal(document.getElementById("invoiceModal")).show();
+      }
+
+      // Agregar una fila de producto a la factura
+      function addInvoiceItem() {
+        const tbody = document.querySelector("#invoiceItemsTable tbody");
+        const row = tbody.insertRow();
+        
+        // Celda para seleccionar producto
+        const cellProduct = row.insertCell(0);
+        const select = document.createElement("select");
+        select.className = "form-select";
+        populateProductSelect(select);
+        select.addEventListener("change", function() {
+          const selectedId = select.value;
+          const priceInput = row.cells[2].querySelector("input[name='price']");
+          if (selectedId) {
+            const prod = allProducts.find(p => p.id === selectedId);
+            if (prod) {
+              priceInput.value = prod.precio;
             }
-            if (precio <= 0) {
-              Swal.showValidationMessage("El precio debe ser mayor a 0.");
-              return;
-            }
-            if (stock < 0) {
-              Swal.showValidationMessage("El stock no puede ser negativo.");
-              return;
-            }
-            // Verificar que no exista un producto con el mismo código.
-            let exists = products.some((p) => p.codigo === codigo);
-            if (exists) {
-              Swal.showValidationMessage("Ya existe un producto con ese código.");
-              return;
-            }
-            return { codigo, descripcion, talla, precio, stock };
+          } else {
+            priceInput.value = "0";
           }
-        }).then((result) => {
-          if (result.value) {
-            let newProduct = result.value;
-            newProduct.createdAt = Date.now();
-            db.collection("productos")
-              .add(newProduct)
-              .then(() => {
-                // Registrar el ingreso inicial en el historial.
-                db.collection("historialIngresos").add({
-                  createdAt: Date.now(),
-                  codigo: newProduct.codigo,
-                  descripcion: newProduct.descripcion,
-                  cantidad: newProduct.stock,
-                  usuario: currentUser
-                });
-                Swal.fire("Producto agregado!", "", "success");
-              })
-              .catch((error) => {
-                Swal.fire("Error", error.message, "error");
-              });
-          }
+          updateInvoiceItemRow(row);
         });
-      });
+        cellProduct.appendChild(select);
+        
+        // Celda para cantidad
+        const cellQuantity = row.insertCell(1);
+        const quantityInput = document.createElement("input");
+        quantityInput.type = "number";
+        quantityInput.name = "quantity";
+        quantityInput.className = "form-control";
+        quantityInput.value = "0";
+        quantityInput.addEventListener("input", function() {
+          updateInvoiceItemRow(row);
+        });
+        cellQuantity.appendChild(quantityInput);
+        
+        // Celda para precio unitario (solo lectura)
+        const cellPrice = row.insertCell(2);
+        const priceInput = document.createElement("input");
+        priceInput.type = "number";
+        priceInput.name = "price";
+        priceInput.className = "form-control";
+        priceInput.value = "0";
+        priceInput.readOnly = true;
+        cellPrice.appendChild(priceInput);
+        
+        // Celda para total
+        const cellTotal = row.insertCell(3);
+        cellTotal.textContent = "0.00";
+        
+        // Celda para acciones (eliminar fila)
+        const cellActions = row.insertCell(4);
+        const btnDelete = document.createElement("button");
+        btnDelete.className = "btn btn-danger btn-sm";
+        btnDelete.textContent = "Eliminar";
+        btnDelete.addEventListener("click", function() {
+          tbody.removeChild(row);
+          updateOverallTotal();
+        });
+        cellActions.appendChild(btnDelete);
+        
+        updateInvoiceItemRow(row);
+      }
 
-      /* ------------------------- Inicialización ------------------------- */
-      listenProducts();
+      // Actualizar total de la fila y reconstruir el arreglo de ítems
+      function updateInvoiceItemRow(row) {
+        const quantity = parseFloat(row.cells[1].querySelector("input[name='quantity']").value);
+        const price = parseFloat(row.cells[2].querySelector("input[name='price']").value);
+        const total = isNaN(quantity * price) ? 0 : quantity * price;
+        row.cells[3].textContent = total.toFixed(2);
+        
+        const tbody = document.querySelector("#invoiceItemsTable tbody");
+        let items = [];
+        for (let r of tbody.rows) {
+          const prodSelect = r.cells[0].querySelector("select");
+          const qty = parseFloat(r.cells[1].querySelector("input[name='quantity']").value);
+          const prc = parseFloat(r.cells[2].querySelector("input[name='price']").value);
+          const tot = isNaN(qty * prc) ? 0 : qty * prc;
+          if (prodSelect && prodSelect.value) {
+            items.push({ productId: prodSelect.value, quantity: qty, price: prc, total: tot });
+          }
+        }
+        invoiceItems = items;
+        updateOverallTotal();
+      }
+
+      // Actualizar el total general de la factura
+      function updateOverallTotal() {
+        const total = invoiceItems.reduce((sum, item) => sum + item.total, 0);
+        document.getElementById("invoiceOverallTotal").value = total.toFixed(2);
+      }
+
+      // Renderizar la tabla de ítems en el formulario
+      function renderInvoiceItems() {
+        const tbody = document.querySelector("#invoiceItemsTable tbody");
+        tbody.innerHTML = "";
+        invoiceItems.forEach((item, index) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${getProductText(item.productId)}</td>
+            <td>${item.quantity}</td>
+            <td>Q ${parseFloat(item.price).toFixed(2)}</td>
+            <td>Q ${parseFloat(item.total).toFixed(2)}</td>
+            <td>
+              <button class="btn btn-sm btn-danger" onclick="removeInvoiceItem(${index})">Eliminar</button>
+            </td>
+          `;
+          tbody.appendChild(row);
+        });
+      }
+
+      // Obtener descripción del producto
+      function getProductText(productId) {
+        const prod = allProducts.find(p => p.id === productId);
+        return prod ? `${prod.codigo} - ${prod.descripcion}` : productId;
+      }
+
+      // Eliminar un ítem de la factura
+      function removeInvoiceItem(index) {
+        invoiceItems.splice(index, 1);
+        renderInvoiceItems();
+        updateOverallTotal();
+      }
+
+      // Guardar o actualizar una factura (para entrada de productos, se suma al inventario)
+      async function saveInvoice() {
+        try {
+          const invoiceId = document.getElementById("invoiceId").value;
+          const invoiceNumber = document.getElementById("invoiceNumber").value.trim();
+          const invoiceDate = document.getElementById("invoiceDate").value;
+          const invoiceStore = document.getElementById("invoiceStore").value;
+          
+          if (!invoiceNumber || !invoiceDate || !invoiceStore || invoiceItems.length === 0) {
+            throw new Error("Complete todos los campos obligatorios y agregue al menos un producto.");
+          }
+          
+          const overallTotal = invoiceItems.reduce((sum, item) => sum + item.total, 0);
+          
+          const invoiceData = {
+            invoiceNumber,
+            invoiceDate: firebase.firestore.Timestamp.fromDate(new Date(invoiceDate)),
+            invoiceStore,
+            items: invoiceItems,
+            overallTotal,
+            status: "activo",
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          };
+          
+          if (invoiceId) {
+            // Actualizar factura existente (sin modificar inventario)
+            await db.collection("facturas").doc(invoiceId).update(invoiceData);
+          } else {
+            // Agregar factura nueva y sumar la cantidad al inventario de la tienda seleccionada
+            const newInvoiceRef = await db.collection("facturas").add(invoiceData);
+            for (const item of invoiceItems) {
+              const prodRef = db.collection("productos").doc(item.productId);
+              const prodDoc = await prodRef.get();
+              if (prodDoc.exists) {
+                const prodData = prodDoc.data();
+                const currentStock = (prodData.stock && prodData.stock[invoiceStore]) || 0;
+                const newStock = currentStock + item.quantity; // Sumamos la entrada
+                const updatedStock = {
+                  ...prodData.stock,
+                  [invoiceStore]: newStock
+                };
+                await prodRef.update({ stock: updatedStock });
+              }
+            }
+          }
+          
+          bootstrap.Modal.getInstance(document.getElementById("invoiceModal")).hide();
+          loadInvoices();
+        } catch (error) {
+          console.error("Error al guardar la factura:", error);
+          alert("Error al guardar la factura: " + error.message);
+        }
+      }
+
+      // Cargar y mostrar facturas desde Firestore
+      async function loadInvoices() {
+        try {
+          const loggedUser = localStorage.getItem("loggedUser") || "admin";
+          let query;
+          if (loggedUser.toLowerCase() !== "admin") {
+            const currentStore = localStorage.getItem("currentStore") || "";
+            query = db.collection("facturas")
+                      .where("invoiceStore", "==", currentStore)
+                      .orderBy("invoiceDate", "desc");
+          } else {
+            query = db.collection("facturas").orderBy("invoiceDate", "desc");
+          }
+          const snapshot = await query.get();
+          const tbody = document.querySelector("#facturasTable tbody");
+          tbody.innerHTML = "";
+          
+          snapshot.forEach((doc) => {
+            const invoice = doc.data();
+            const row = tbody.insertRow();
+            if (invoice.status === "anulado") {
+              row.classList.add("table-warning");
+            }
+            row.insertCell(0).textContent = invoice.invoiceNumber;
+            const dateStr = invoice.invoiceDate && invoice.invoiceDate.toDate
+              ? invoice.invoiceDate.toDate().toLocaleDateString()
+              : "";
+            row.insertCell(1).textContent = dateStr;
+            row.insertCell(2).textContent = invoice.invoiceStore || "-";
+            row.insertCell(3).textContent = invoice.status ? invoice.status.toUpperCase() : "ACTIVO";
+            const productsList = invoice.items.map(item => {
+              const prod = allProducts.find(p => p.id === item.productId);
+              return prod ? `${prod.codigo} - ${prod.descripcion}` : item.productId;
+            }).join(", ");
+            row.insertCell(4).textContent = productsList;
+            row.insertCell(5).textContent = invoice.overallTotal;
+            const cellActions = row.insertCell(6);
+            cellActions.innerHTML = `
+              <button class="btn btn-sm btn-info me-1" onclick="viewInvoiceDetails('${doc.id}')">
+                <i class="fa-solid fa-eye"></i> Detalles
+              </button>
+              <button class="btn btn-sm btn-primary me-1" onclick="editInvoice('${doc.id}')">
+                <i class="fa-solid fa-edit"></i> Editar
+              </button>
+              <button class="btn btn-sm btn-warning me-1" onclick="anularInvoice('${doc.id}')">
+                <i class="fa-solid fa-ban"></i> Anular
+              </button>
+              <button class="btn btn-sm btn-danger" onclick="deleteInvoice('${doc.id}')">
+                <i class="fa-solid fa-trash"></i> Eliminar
+              </button>
+            `;
+          });
+        } catch (error) {
+          console.error("Error al cargar facturas:", error);
+          alert("Error al cargar facturas: " + error.message);
+        }
+      }
+
+      // Ver detalles de una factura
+      async function viewInvoiceDetails(invoiceId) {
+        try {
+          const doc = await db.collection("facturas").doc(invoiceId).get();
+          if (!doc.exists) {
+            alert("Factura no encontrada.");
+            return;
+          }
+          const invoice = doc.data();
+          document.getElementById("detailInvoiceNumber").textContent = invoice.invoiceNumber;
+          const dateStr = invoice.invoiceDate && invoice.invoiceDate.toDate
+            ? invoice.invoiceDate.toDate().toLocaleDateString()
+            : "";
+          document.getElementById("detailInvoiceDate").textContent = dateStr;
+          document.getElementById("detailInvoiceStore").textContent = invoice.invoiceStore || "-";
+          document.getElementById("detailInvoiceStatus").textContent = invoice.status ? invoice.status.toUpperCase() : "ACTIVO";
+          
+          const tbody = document.getElementById("detailInvoiceItems");
+          tbody.innerHTML = "";
+          invoice.items.forEach(item => {
+            const tr = document.createElement("tr");
+            const prod = allProducts.find(p => p.id === item.productId);
+            const prodText = prod ? `${prod.codigo} - ${prod.descripcion}` : item.productId;
+            tr.innerHTML = `
+              <td>${prodText}</td>
+              <td>${item.quantity}</td>
+              <td>Q ${parseFloat(item.price).toFixed(2)}</td>
+              <td>Q ${parseFloat(item.total).toFixed(2)}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+          document.getElementById("detailInvoiceOverallTotal").textContent = parseFloat(invoice.overallTotal).toFixed(2);
+          
+          new bootstrap.Modal(document.getElementById("invoiceDetailsModal")).show();
+        } catch (error) {
+          console.error("Error al cargar detalles de factura:", error);
+          alert("Error al cargar detalles: " + error.message);
+        }
+      }
+
+      // Exportar comprobante (detalles de factura) como imagen usando html2canvas
+      function exportInvoiceComprobante() {
+        const container = document.getElementById("invoiceDetailsContainer");
+        html2canvas(container).then((canvas) => {
+          const imgData = canvas.toDataURL("image/png");
+          const link = document.createElement("a");
+          link.download = "comprobante_factura.png";
+          link.href = imgData;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        });
+      }
+
+      // Editar una factura
+      function editInvoice(invoiceId) {
+        db.collection("facturas").doc(invoiceId).get()
+          .then(doc => {
+            if (!doc.exists) {
+              alert("Factura no encontrada.");
+              return;
+            }
+            const invoice = doc.data();
+            document.getElementById("invoiceId").value = invoiceId;
+            document.getElementById("invoiceNumber").value = invoice.invoiceNumber;
+            document.getElementById("invoiceDate").value = new Date(invoice.invoiceDate.seconds * 1000)
+                                                          .toISOString().slice(0,10);
+            document.getElementById("invoiceStore").value = invoice.invoiceStore || "";
+            loadAllProductsForInvoice(invoice.invoiceStore).then(() => {
+              // Actualizar selects en filas existentes si se requiere
+            });
+            invoiceItems = invoice.items || [];
+            renderInvoiceItems();
+            updateOverallTotal();
+            new bootstrap.Modal(document.getElementById("invoiceModal")).show();
+          })
+          .catch(error => {
+            alert("Error al cargar factura: " + error.message);
+          });
+      }
+
+      // Eliminar una factura
+      async function deleteInvoice(invoiceId) {
+        if (!confirm("¿Está seguro de eliminar esta factura?")) return;
+        try {
+          await db.collection("facturas").doc(invoiceId).delete();
+          loadInvoices();
+        } catch (error) {
+          alert("Error al eliminar la factura: " + error.message);
+        }
+      }
+
+      // Anular una factura: se revierte la entrada restando la cantidad del inventario de la tienda
+      async function anularInvoice(invoiceId) {
+        if (!confirm("¿Está seguro de anular esta factura? Se revertirá el inventario.")) return;
+        try {
+          const doc = await db.collection("facturas").doc(invoiceId).get();
+          if (!doc.exists) {
+            alert("Factura no encontrada.");
+            return;
+          }
+          const invoice = doc.data();
+          if (invoice.status !== "activo") {
+            alert("La factura ya se encuentra anulada.");
+            return;
+          }
+          for (const item of invoice.items) {
+            const prodRef = db.collection("productos").doc(item.productId);
+            const prodDoc = await prodRef.get();
+            if (prodDoc.exists) {
+              const prod = prodDoc.data();
+              let updatedStock = prod.stock || {};
+              // Revertir la entrada: se resta la cantidad ingresada previamente
+              updatedStock[invoice.invoiceStore] = (updatedStock[invoice.invoiceStore] || 0) - item.quantity;
+              await prodRef.update({ stock: updatedStock });
+            }
+          }
+          await db.collection("facturas").doc(invoiceId).update({ status: "anulado" });
+          alert("Factura anulada y el inventario fue revertido.");
+          loadInvoices();
+        } catch (error) {
+          alert("Error al anular factura: " + error.message);
+        }
+      }
+
+      // Inicialización: cargar productos y facturas
+      document.addEventListener("DOMContentLoaded", async () => {
+        await loadAllProductsForInvoice();
+        loadInvoices();
+      });
     </script>
   </body>
 </html>

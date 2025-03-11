@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Proyecto - Menú Principal</title>
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- Font Awesome para íconos -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+      /* Estilos para el menú fijo y el contenedor de contenido */
+      body {
+        display: flex;
+        margin: 0;
+        min-height: 100vh;
+      }
+      /* Menú lateral fijo con flex para posicionar el bloque de usuario al final */
+      #sidebar {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        width: 250px;
+        background-color: #343a40;
+        color: #fff;
+        position: fixed;
+        height: 100vh;
+        overflow-y: auto;
+        padding: 20px;
+      }
+      #sidebar h2 {
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+      }
+      /* Menú de opciones */
+      #sidebar ul {
+        padding: 0;
+        list-style: none;
+      }
+      #sidebar ul li a {
+        display: block;
+        padding: 10px 15px;
+        color: #fff;
+        text-decoration: none;
+        border-radius: 4px;
+        margin-bottom: 5px;
+      }
+      #sidebar ul li a:hover {
+        background-color: #495057;
+      }
+      /* Bloque de información del usuario al final del menú */
+      #sidebar .user-info {
+        padding-top: 20px;
+        border-top: 1px solid #495057;
+        text-align: center;
+      }
+      #sidebar .user-info span {
+        display: block;
+        font-weight: bold;
+      }
+      #sidebar .logout-btn {
+        background: none;
+        border: none;
+        color: #fff;
+        cursor: pointer;
+        font-size: 1rem;
+        margin-top: 5px;
+      }
+      /* Contenedor principal: se desplaza a la derecha del menú */
+      #content {
+        margin-left: 250px;
+        padding: 20px;
+        width: calc(100% - 250px);
+      }
+      /* Ajusta el iframe para ocupar casi todo el espacio vertical */
+      #contentFrame {
+        width: 100%;
+        height: 90vh;
+        border: none;
+      }
+    </style>
+
+    <!-- Firebase: primero firebase-app, luego firebase-firestore -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script>
+      // Verifica si no hay una app de Firebase inicializada antes de inicializar
+      if (!firebase.apps.length) {
+        var firebaseConfig = {
+          apiKey: "AIzaSy...",
+          authDomain: "gleedb-5d36a.firebaseapp.com",
+          projectId: "gleedb-5d36a",
+          storageBucket: "gleedb-5d36a.firebasestorage.app",
+          messagingSenderId: "1090238022032",
+          appId: "1:1090238022032:web:c637b0a6dfe06be5287315"
+        };
+        firebase.initializeApp(firebaseConfig);
+      }
+      // Crear instancia de Firestore
+      var db = firebase.firestore();
+    </script>
+
+    <script>
+      // Al cargar la página, verificar si hay un usuario logueado; si no, redirigir a login.html
+      document.addEventListener("DOMContentLoaded", function () {
+        const loggedUser = localStorage.getItem("loggedUser");
+        if (!loggedUser) {
+          window.location.href = "login.html";
+        } else {
+          // Mostrar el nombre del usuario en el bloque de usuario
+          document.getElementById("loggedUser").innerHTML = `<i class="fa-solid fa-user"></i> ${loggedUser}`;
+          
+          // Consultar Firestore para obtener los datos del usuario (rol, tienda, permisos)
+          db.collection("usuarios")
+            .where("username", "==", loggedUser)
+            .get()
+            .then(snapshot => {
+              if (!snapshot.empty) {
+                snapshot.forEach(doc => {
+                  const userData = doc.data();
+                  // Mostrar la tienda si existe
+                  if (userData.tienda) {
+                    document.getElementById("userStore").textContent = userData.tienda;
+                  }
+                  // Aplicar permisos y rol al menú
+                  applyMenuPermissions(userData);
+                });
+              } else {
+                // Si no se encontró el usuario en Firestore, desloguear
+                localStorage.removeItem("loggedUser");
+                window.location.href = "login.html";
+              }
+            })
+            .catch(error => console.error("Error fetching user data:", error));
+        }
+      });
+      
+      // Función para cerrar sesión: remover "loggedUser" y redirigir a login.html
+      function logout() {
+        localStorage.removeItem("loggedUser");
+        window.location.href = "login.html";
+      }
+
+      // Función que oculta o muestra secciones del menú según rol y permisos
+      function applyMenuPermissions(userData) {
+        // Rol
+        const userRol = (userData.rol || "").toLowerCase();
+        // Permisos personalizados (si no existen, asumimos un objeto vacío)
+        const perms = userData.permissions || {};
+
+        // Identificadores de los <li> en el menú
+        const menuProductos   = document.getElementById("menuProductos");
+        const menuEntradas    = document.getElementById("menuEntradas");
+        const menuMovimientos = document.getElementById("menuMovimientos");
+        const menuVentas      = document.getElementById("menuVentas");
+        const menuUsuarios    = document.getElementById("menuUsuarios");
+        const menuTiendas     = document.getElementById("menuTiendas");
+
+        // Si es admin, ve todo
+        // Si NO es admin, se ocultan Usuarios/Tiendas y se aplica el objeto "perms"
+        if (userRol !== "admin") {
+          // Ocultar Usuarios, Tiendas
+          if (menuUsuarios) menuUsuarios.style.display = "none";
+          if (menuTiendas)  menuTiendas.style.display  = "none";
+
+          // Productos
+          if (!perms.productos && menuProductos) {
+            menuProductos.style.display = "none";
+          }
+          // Entradas
+          if (!perms.entradas && menuEntradas) {
+            menuEntradas.style.display = "none";
+          }
+          // Movimientos
+          if (!perms.movimientos && menuMovimientos) {
+            menuMovimientos.style.display = "none";
+          }
+          // Ventas (usamos "salidas" como permiso)
+          if (!perms.salidas && menuVentas) {
+            menuVentas.style.display = "none";
+          }
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <!-- Menú lateral fijo -->
+    <nav id="sidebar">
+      <div>
+        <h2>Menú Principal</h2>
+        <ul>
+          <!-- Cada li con ID para controlarlo desde applyMenuPermissions -->
+          <li id="menuProductos">
+            <a href="listaProductos.html" target="contentFrame">Productos</a>
+          </li>
+          <li id="menuEntradas">
+            <a
+              class="dropdown-toggle"
+              href="#"
+              data-bs-toggle="collapse"
+              data-bs-target="#submenuEntradas"
+              aria-expanded="false"
+            >
+              Entradas
+            </a>
+            <ul class="collapse submenu" id="submenuEntradas">
+              <li>
+                <a href="entradaMercaderia.html" target="contentFrame">Entrada Mercadería</a>
+              </li>
+              <li>
+                <a href="traslados.html" target="contentFrame">Traslados</a>
+              </li>
+              <li>
+                <a href="devolucion.html" target="contentFrame">Devolución</a>
+              </li>
+            </ul>
+          </li>
+          <li id="menuMovimientos">
+            <a
+              class="dropdown-toggle"
+              href="#"
+              data-bs-toggle="collapse"
+              data-bs-target="#submenuMovimientos"
+              aria-expanded="false"
+            >
+              Movimientos
+            </a>
+            <ul class="collapse submenu" id="submenuMovimientos">
+              <li>
+                <a href="realizarMovimiento.html" target="contentFrame">Realizar Movimiento</a>
+              </li>
+              <li>
+                <a href="historiasMovimientos.html" target="contentFrame">Historias de Movimientos</a>
+              </li>
+            </ul>
+          </li>
+          <li id="menuVentas">
+            <a
+              class="dropdown-toggle"
+              href="#"
+              data-bs-toggle="collapse"
+              data-bs-target="#submenuVentas"
+              aria-expanded="false"
+            >
+              Ventas
+            </a>
+            <ul class="collapse submenu" id="submenuVentas">
+              <li>
+                <a href="ventas.html" target="contentFrame">Ventas</a>
+              </li>
+              <li>
+                <a href="ventasHistorial.html" target="contentFrame">Ventas Historial</a>
+              </li>
+              <li>
+                <a href="cierre.html" target="contentFrame">Cierre</a>
+              </li>
+            </ul>
+          </li>
+          <!-- Solo admin puede ver (si userRol === "admin") -->
+          <li id="menuUsuarios">
+            <a href="usuarios.html" target="contentFrame">
+              <i class="fa-solid fa-user"></i> Usuarios
+            </a>
+          </li>
+          <li id="menuTiendas">
+            <a href="tiendas.html" target="contentFrame">
+              <i class="fa-solid fa-store"></i> Tiendas
+            </a>
+          </li>
+        </ul>
+      </div>
+      <!-- Bloque de información del usuario al final del menú -->
+      <div class="user-info">
+        <span id="loggedUser"></span>
+        <span id="userStore"></span>
+        <button class="logout-btn" onclick="logout()" title="Cerrar sesión">
+          <i class="fa-solid fa-right-from-bracket"></i>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Contenedor principal: se carga el contenido en un iframe -->
+    <div id="content">
+      <iframe id="contentFrame" name="contentFrame" src="listaProductos.html"></iframe>
+    </div>
+
+    <!-- Bootstrap JS Bundle (incluye Popper) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+</html>
