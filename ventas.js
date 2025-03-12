@@ -538,25 +538,22 @@ function cerrarCaja() {
     Swal.fire("Error", "No hay una apertura activa.", "warning");
     return;
   }
+  // La fecha de cierre se asignará automáticamente a hoy
+  const fechaHoy = new Date().toISOString().split("T")[0];
   Swal.fire({
     title: "Cerrar Caja",
     html: `
-      <input type="date" id="fechaCierre" class="swal2-input" placeholder="Fecha de cierre">
+      <p>La fecha de cierre se asignará automáticamente a hoy: ${fechaHoy}</p>
       <input type="number" id="montoFinal" class="swal2-input" placeholder="Monto final en caja (Q)">
     `,
     focusConfirm: false,
     preConfirm: () => {
-      const fechaCierre = document.getElementById("fechaCierre").value;
       const montoFinal = parseFloat(document.getElementById("montoFinal").value);
-      if (!fechaCierre) {
-        Swal.showValidationMessage("Debe ingresar la fecha de cierre");
-        return;
-      }
       if (isNaN(montoFinal)) {
         Swal.showValidationMessage("Debe ingresar un monto final válido");
         return;
       }
-      return { fechaCierre, montoFinal };
+      return { fechaCierre: fechaHoy, montoFinal };
     }
   }).then(result => {
     if (result.isConfirmed) {
@@ -586,7 +583,6 @@ function cerrarCaja() {
           let totalGeneral = totalEfectivo + totalTarjeta + totalTransferencia;
           let diferencia = montoFinal - totalGeneral;
           let now = new Date();
-          let fechaCierreReal = now.toISOString().split("T")[0];
           let horaCierre = now.toTimeString().split(" ")[0];
           let cierre = {
             idApertura: idAperturaActivo,
