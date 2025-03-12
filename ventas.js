@@ -117,13 +117,19 @@ async function loadProductos() {
 
 function renderProducts() {
   const searchQuery = document.getElementById("searchInput").value.toLowerCase();
+  const sizeFilter = document.getElementById("sizeFilter").value;
   const tbody = document.getElementById("productsBody");
   tbody.innerHTML = "";
   
-  // Filtrar productos según búsqueda
+  // Filtrar productos según búsqueda y talla
   const filteredProducts = productos.filter(prod => {
-    return prod.codigo.toLowerCase().includes(searchQuery) ||
-           prod.descripcion.toLowerCase().includes(searchQuery);
+    const matchesSearch = prod.codigo.toLowerCase().includes(searchQuery) ||
+                          prod.descripcion.toLowerCase().includes(searchQuery);
+    let matchesSize = true;
+    if (sizeFilter) {
+      matchesSize = prod.talla && prod.talla.toLowerCase() === sizeFilter.toLowerCase();
+    }
+    return matchesSearch && matchesSize;
   });
   
   if (filteredProducts.length === 0) {
@@ -163,9 +169,10 @@ function renderProducts() {
   });
 }
 
-/************ Buscador: Actualiza la lista en tiempo real ************/
+/************ Buscador y Filtro: Actualiza la lista en tiempo real ************/
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("searchInput").addEventListener("input", renderProducts);
+  document.getElementById("sizeFilter").addEventListener("change", renderProducts);
 });
 
 /************ Función para Agregar Producto al Carrito ************/
@@ -248,38 +255,7 @@ function removerDelCarrito(index) {
   renderCart();
 }
 
-/************ Funciones de Venta (Datos, Registro y Comprobante) ************/
-async function capturarDatosCliente() {
-  const { value: cliente } = await Swal.fire({
-    title: "Datos del Cliente",
-    html: `
-      <input type="text" id="clienteNombre" class="swal2-input" placeholder="Nombre y Apellido">
-      <input type="text" id="clienteTelefono" class="swal2-input" placeholder="Teléfono">
-      <input type="email" id="clienteCorreo" class="swal2-input" placeholder="Correo Electrónico (opcional)">
-      <input type="text" id="clienteDireccion" class="swal2-input" placeholder="Dirección (opcional)">
-    `,
-    focusConfirm: false,
-    preConfirm: () => {
-      const nombre = document.getElementById("clienteNombre").value;
-      const telefono = document.getElementById("clienteTelefono").value;
-      if (!nombre || !telefono) {
-        Swal.showValidationMessage("Nombre y Teléfono son obligatorios");
-        return;
-      }
-      return {
-        nombre,
-        telefono,
-        correo: document.getElementById("clienteCorreo").value,
-        direccion: document.getElementById("clienteDireccion").value
-      };
-    }
-  });
-  if (cliente) {
-    datosCliente = cliente;
-    Swal.fire("Datos del cliente guardados", "", "success");
-  }
-}
-
+/************ Función para Procesar Venta (con Datos del Cliente Integrados) ************/
 async function procesarVenta() {
   if (!cajaAbierta || !idAperturaActivo) {
     Swal.fire("Error", "Debes abrir la caja antes de realizar ventas.", "warning");
@@ -287,10 +263,6 @@ async function procesarVenta() {
   }
   if (cart.length === 0) {
     Swal.fire("El carrito está vacío", "", "warning");
-    return;
-  }
-  if (!datosCliente.nombre || !datosCliente.telefono) {
-    Swal.fire("Debe capturar los datos del cliente", "", "warning");
     return;
   }
   let resumen = "";
@@ -304,9 +276,16 @@ async function procesarVenta() {
   });
   let totalVenta = parseFloat(document.getElementById("totalVenta").textContent) || 0;
   resumen += `<h4>Total: Q${totalVenta.toFixed(2)}</h4>`;
-  const { value: pago } = await Swal.fire({
+  const { value: formData } = await Swal.fire({
     title: "Procesar Venta",
     html: `
+      <h4>Datos del Cliente</h4>
+      <input type="text" id="clienteNombre" class="swal2-input" placeholder="Nombre y Apellido">
+      <input type="text" id="clienteTelefono" class="swal2-input" placeholder="Teléfono">
+      <input type="email" id="clienteCorreo" class="swal2-input" placeholder="Correo Electrónico (opcional)">
+      <input type="text" id="clienteDireccion" class="swal2-input" placeholder="Dirección (opcional)">
+      <hr>
+      <h4>Detalle de la Venta</h4>
       ${resumen}
       <select id="metodoPago" class="swal2-select">
         <option value="Efectivo" selected>Efectivo</option>
@@ -319,6 +298,22 @@ async function procesarVenta() {
     `,
     focusConfirm: false,
     preConfirm: () => {
+      const nombre = document.getElementById("clienteNombre").value.trim();
+      const telefono = document.getElementById("clienteTelefono").value.trim();
+      if (!nombre) {
+        Swal.showValidationMessage("El nombre es obligatorio");
+        return;
+      }
+      if (!telefono) {
+        Swal.showValidationMessage("El teléfono es obligatorio");
+        return;
+      }
+      const clienteData = {
+        nombre,
+        telefono,
+        correo: document.getElementById("clienteCorreo").value.trim(),
+        direccion: document.getElementById("clienteDireccion").value.trim()
+      };
       const metodo = document.getElementById("metodoPago").value;
       let pagoObj = { metodo: metodo };
       if (metodo === "Efectivo") {
@@ -330,7 +325,7 @@ async function procesarVenta() {
         pagoObj.montoRecibido = monto;
         pagoObj.cambio = monto - totalVenta;
       }
-      return pagoObj;
+      return { clienteData, pagoObj };
     },
     didOpen: () => {
       const metodoSelect = document.getElementById("metodoPago");
@@ -340,7 +335,11 @@ async function procesarVenta() {
       });
     }
   });
-  if (!pago) return;
+  if (!formData) return;
+  // Asignar datos del cliente
+  datosCliente = formData.clienteData;
+  
+  // Crear objeto de venta
   let idVenta = generarIdVentaCorta();
   let venta = {
     idVenta: idVenta,
@@ -355,8 +354,8 @@ async function procesarVenta() {
       subtotal: item.cantidad * item.precio
     })),
     total: totalVenta,
-    metodo_pago: pago.metodo,
-    cambio: pago.cambio || 0,
+    metodo_pago: formData.pagoObj.metodo,
+    cambio: formData.pagoObj.cambio || 0,
     usuario: usuarioActual,
     idApertura: idAperturaActivo
   };
@@ -395,6 +394,7 @@ async function procesarVenta() {
   });
 }
 
+/************ Función para Descargar Comprobante en PDF ************/
 function descargarComprobante(venta) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: "p", unit: "mm", format: [80, 300] });

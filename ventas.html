@@ -42,7 +42,7 @@
   <body>
     <div class="container-fluid">
       <div class="row">
-        <!-- Lado Izquierdo: Carrito, Datos del Cliente y Control de Caja -->
+        <!-- Lado Izquierdo: Carrito y Control de Caja -->
         <div class="col-md-5 border-end">
           <h2>Carrito de Venta</h2>
           <table class="table table-sm" id="cartTable">
@@ -58,11 +58,10 @@
             <tbody></tbody>
           </table>
           <h4>Total: Q <span id="totalVenta">0.00</span></h4>
-          <!-- Botones para datos y venta -->
-          <button class="btn btn-primary mt-2" onclick="capturarDatosCliente()">Datos del Cliente</button>
+          <!-- Se elimina el botón de Datos del Cliente -->
           <button class="btn btn-success mt-2" onclick="procesarVenta()">Procesar Venta</button>
           <hr />
-          <!-- Botones de Apertura y Cierre de Caja -->
+          <!-- Apertura y Cierre de Caja -->
           <button class="btn btn-warning mt-2" onclick="abrirCaja()">Abrir Caja</button>
           <button class="btn btn-danger mt-2" onclick="cerrarCaja()">Cerrar Caja</button>
         </div>
@@ -78,7 +77,22 @@
           </div>
           <!-- Buscador de productos -->
           <div class="filter-group">
-            <input type="text" id="searchInput" class="form-control" placeholder="Buscar por código o descripción">
+            <input
+              type="text"
+              id="searchInput"
+              class="form-control"
+              placeholder="Buscar por código o descripción"
+            />
+          </div>
+          <!-- Filtro por Talla -->
+          <div class="filter-group">
+            <select id="sizeFilter" class="form-select">
+              <option value="">Todas las tallas</option>
+              <option value="S">S</option>
+              <option value="M">M</option>
+              <option value="L">L</option>
+              <option value="XL">XL</option>
+            </select>
           </div>
           <table class="table table-bordered" id="productsTable">
             <thead class="table-light">
